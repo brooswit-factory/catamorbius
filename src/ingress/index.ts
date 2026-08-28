@@ -5,6 +5,19 @@ import type { ProviderAdapter } from "../adapters/types.js";
 import type { Config } from "../config.js";
 import type { Store } from "../store/index.js";
 
+const REDACTED_HEADER_NAMES = new Set(["authorization", "proxy-authorization", "cookie", "set-cookie"]);
+
+/** Drops credential-bearing headers before anything is stored — never applied to what verify() sees. */
+function redactHeaders(headers: Record<string, string>): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const [name, value] of Object.entries(headers)) {
+    const lower = name.toLowerCase();
+    if (REDACTED_HEADER_NAMES.has(lower) || lower.includes("signature") || lower.includes("token")) continue;
+    out[name] = value;
+  }
+  return out;
+}
+
 function sha256Hex(headers: Record<string, string>, body: Uint8Array): string {
   const hash = createHash("sha256");
   hash.update(JSON.stringify(headers));
@@ -23,7 +36,7 @@ function wrapUnknown(provider: string, rawBody: Uint8Array, headers: Record<stri
     source: `//${provider}/unknown`,
     type: `${provider}.unknown`,
     time: new Date().toISOString(),
-    raw: { body, headers },
+    raw: { body, headers: redactHeaders(headers) },
   });
 }
 
@@ -78,7 +91,10 @@ export function buildIngress({ config, store, adapters }: IngressDeps) {
       if (!produced.every(isCloudEvent)) {
         throw new Error(`adapter "${adapter.provider}" returned a non-conforming CloudEvent`);
       }
-      events = produced;
+      events = produced.map((event) => ({
+        ...event,
+        data: { ...event.data, raw: { ...event.data.raw, headers: redactHeaders(event.data.raw.headers) } },
+      }));
     } catch {
       // Either toEvents threw, or it returned something that isn't a valid
       // CloudEvent — an adapter failure must never surface as a 5xx, since

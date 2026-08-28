@@ -19,7 +19,7 @@ jobs:
       - run: bun run build
   release-gate:
     name: release gate
-    if: github.event_name == 'pull_request'
+    if: github.event_name == 'pull_request' && github.base_ref == 'main'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

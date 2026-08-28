@@ -165,4 +165,92 @@ describe("ingress", () => {
     const res = await post(app, "fake", "{}");
     expect(res.status).toBe(202);
   });
+
+  test("adapter returns a top-level-valid envelope with data: {} -> 202, one row, <provider>.unknown, raw intact", async () => {
+    const malformed = {
+      specversion: "1.0", id: "z", source: "//fake/z", type: "fake.z", time: "2026-08-28T00:00:00Z",
+      datacontenttype: "application/json", data: {},
+    } as unknown as CloudEvent;
+    const { app, store } = makeApp(
+      { verifyResult: { ok: true }, toEvents: () => [malformed] },
+      { WEBHOOK_SECRET_FAKE: "s" },
+    );
+    const res = await post(app, "fake", JSON.stringify({ weird: true }), { "x-test": "1" });
+    expect(res.status).toBe(202);
+    const body = (await res.json()) as { events: Array<{ type: string }> };
+    expect(body.events).toHaveLength(1);
+    expect(body.events[0]!.type).toBe("fake.unknown");
+    const rows = store.read();
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.event.type).toBe("fake.unknown");
+    expect(rows[0]!.event.data.raw.body).toEqual({ weird: true });
+    expect(rows[0]!.event.data.raw.headers["x-test"]).toBe("1");
+  });
+
+  test("throwing adapter + credential headers -> stored headers exclude authorization/signature, keep the rest", async () => {
+    const { app, store } = makeApp(
+      { verifyResult: { ok: true }, toEvents: () => { throw new Error("boom"); } },
+      { WEBHOOK_SECRET_FAKE: "s" },
+    );
+    const res = await post(app, "fake", '{"body":true}', {
+      authorization: "Bearer should-not-be-stored",
+      "x-hub-signature-256": "sha256=deadbeef",
+      "x-probe-delivery": "d-1",
+    });
+    expect(res.status).toBe(202);
+    const rows = store.read();
+    const headers = rows[0]!.event.data.raw.headers;
+    expect(headers.authorization).toBeUndefined();
+    expect(headers["x-hub-signature-256"]).toBeUndefined();
+    expect(headers["x-probe-delivery"]).toBe("d-1");
+    expect(headers["content-type"]).toBe("application/json");
+  });
+
+  test("conforming adapter that passes all request headers through -> same exclusion holds after append", async () => {
+    const { app, store } = makeApp(
+      {
+        verifyResult: { ok: true },
+        toEvents: (rawBody, headers) => [
+          createCloudEvent({
+            id: "pass-through", source: "//fake/x", type: "fake.a", time: "2026-08-28T00:00:00Z",
+            raw: { body: JSON.parse(typeof rawBody === "string" ? rawBody : Buffer.from(rawBody).toString("utf8")), headers },
+          }),
+        ],
+      },
+      { WEBHOOK_SECRET_FAKE: "s" },
+    );
+    const res = await post(app, "fake", "{}", {
+      authorization: "Bearer should-not-be-stored",
+      "x-hub-signature-256": "sha256=deadbeef",
+      "x-probe-delivery": "d-1",
+    });
+    expect(res.status).toBe(202);
+    const rows = store.read();
+    const headers = rows[0]!.event.data.raw.headers;
+    expect(headers.authorization).toBeUndefined();
+    expect(headers["x-hub-signature-256"]).toBeUndefined();
+    expect(headers["x-probe-delivery"]).toBe("d-1");
+    expect(headers["content-type"]).toBe("application/json");
+  });
+
+  test("verify() receives the full, unredacted headers even though storage is redacted", async () => {
+    const store = open(":memory:");
+    const config = loadConfig({ WEBHOOK_SECRET_FAKE: "s" });
+    let seenByVerify: Record<string, string> | undefined;
+    const adapter = {
+      provider: "fake",
+      verify(headers: Record<string, string>) {
+        seenByVerify = headers;
+        return { ok: true } as const;
+      },
+      toEvents: () => { throw new Error("boom"); },
+    };
+    const app = new Elysia().use(buildIngress({ config, store, adapters: [adapter] }));
+    await post(app, "fake", "{}", {
+      authorization: "Bearer should-not-be-stored",
+      "x-hub-signature-256": "sha256=deadbeef",
+    });
+    expect(seenByVerify?.authorization).toBe("Bearer should-not-be-stored");
+    expect(seenByVerify?.["x-hub-signature-256"]).toBe("sha256=deadbeef");
+  });
 });

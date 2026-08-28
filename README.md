@@ -76,7 +76,12 @@ Every stored/emitted event is a CloudEvents 1.0 envelope:
     raw: {
       body: unknown,           // the provider payload parsed as JSON, verbatim — or the
                                 //   raw body string when it does not parse
-      headers: Record<string, string>, // selected delivery headers, lowercase keys
+      headers: Record<string, string>, // selected delivery headers, lowercase keys —
+                                        //   credential-bearing headers (authorization,
+                                        //   proxy-authorization, cookie, set-cookie, and
+                                        //   anything containing "signature" or "token") are
+                                        //   stripped before storage on every path and are
+                                        //   never written to the log
     },
     summary: {                 // every field optional; an unknown event has {} here
       actor?: string,
