@@ -1,0 +1,30 @@
+{
+  "headers": {
+    "content-type": "application/json",
+    "x-atlassian-webhook-identifier": "55555555-5555-5555-5555-555555555555",
+    "x-atlassian-webhook-flow": "Primary"
+  },
+  "body": {
+    "timestamp": 1606481200000,
+    "webhookEvent": "comment_created",
+    "user": {
+      "self": "https://your-domain.atlassian.net/rest/api/2/user?accountId=99:27935d01-92a7-4687-8272-a9b8d3b2ae2e",
+      "accountId": "99:27935d01-92a7-4687-8272-a9b8d3b2ae2e",
+      "accountType": "atlassian",
+      "displayName": "Bryan Rollins [Atlassian]"
+    },
+    "comment": {
+      "self": "https://your-domain.atlassian.net/rest/api/3/issue/JRA-9/comment/252790",
+      "id": "252790",
+      "author": {
+        "self": "https://your-domain.atlassian.net/rest/api/2/user?accountId=99:27935d01-92a7-4687-8272-a9b8d3b2ae2e",
+        "accountId": "99:27935d01-92a7-4687-8272-a9b8d3b2ae2e",
+        "displayName": "Bryan Rollins [Atlassian]"
+      },
+      "body": "No parent issue object on this delivery — hedge case.",
+      "created": "2026-08-01T10:05:00.000-0700",
+      "updated": "2026-08-01T10:05:00.000-0700",
+      "jsdPublic": true
+    }
+  }
+}

@@ -1,0 +1,37 @@
+{
+  "headers": {
+    "content-type": "application/json",
+    "x-atlassian-webhook-identifier": "11111111-1111-1111-1111-111111111111",
+    "x-atlassian-webhook-flow": "Primary"
+  },
+  "body": {
+    "timestamp": 1606480436302,
+    "webhookEvent": "jira:issue_created",
+    "issue_event_type_name": "issue_created",
+    "user": {
+      "self": "https://your-domain.atlassian.net/rest/api/2/user?accountId=99:27935d01-92a7-4687-8272-a9b8d3b2ae2e",
+      "accountId": "99:27935d01-92a7-4687-8272-a9b8d3b2ae2e",
+      "accountType": "atlassian",
+      "displayName": "Bryan Rollins [Atlassian]",
+      "active": "true",
+      "timeZone": "Europe/Warsaw"
+    },
+    "issue": {
+      "id": "99291",
+      "self": "https://your-domain.atlassian.net/rest/api/2/issue/99291",
+      "key": "JRA-20002",
+      "fields": {
+        "summary": "I feel the need for speed",
+        "created": "2009-12-16T23:46:10.612-0600",
+        "description": "Make the issue nav load 10x faster",
+        "labels": ["UI", "dialogue", "move"],
+        "priority": {
+          "self": "https://your-domain.atlassian.net/rest/api/2/priority/3",
+          "iconUrl": "https://your-domain.atlassian.net/images/icons/priorities/minor.svg",
+          "name": "Minor",
+          "id": "3"
+        }
+      }
+    }
+  }
+}

@@ -167,6 +167,78 @@ was taken from — nothing is invented from memory.
 this adapter accepts and types every one of them, so there is no minimum
 subscription list to satisfy the gateway itself.
 
+### Jira
+
+The `jira` provider adapter (`src/adapters/jira.ts`) is implemented
+strictly against [`docs/jira-webhooks.md`](docs/jira-webhooks.md), an
+investigation of what Atlassian's Jira Cloud webhooks docs actually
+document — read that file for the full quotes and citations. Summary,
+marked confirmed vs. assumed the same way that document does:
+
+- **Verification (CONFIRMED)** — an admin-registered Jira Cloud webhook
+  (Jira Administration UI, or `POST /rest/webhooks/1.0/webhook`) that
+  carries a `secret` has Jira HMAC the raw request body and send it as
+  `X-Hub-Signature: <method>=<hex>` (WebSub-style). Atlassian's docs warn
+  the method may change, so the adapter reads `method` out of the header
+  rather than assuming `sha256=`; today `sha256` is the only method it
+  accepts; an unrecognized method fails with a reason, never a silent
+  pass. The HMAC is computed over the exact raw bytes and compared to the
+  header's hex digest in constant time (`node:crypto`'s `timingSafeEqual`,
+  with the lengths checked first so it can never throw). `WEBHOOK_SECRET_JIRA`
+  is the secret configured on the Jira side; the missing-secret 503/dev-mode
+  rule above applies exactly as for any other provider.
+- **Delivery id (CONFIRMED)** — every delivery carries
+  `X-Atlassian-Webhook-Identifier`, documented as unique within a Jira
+  Cloud tenant and stable across Jira's own retries. It is used directly
+  as the CloudEvent `id`; dedupe is on the pair `(source, id)`, and
+  `source` already encodes the tenant host, so cross-tenant collision
+  isn't a concern. When the header is absent, the adapter falls back to a
+  deterministic SHA-256 over `(webhookEvent, timestamp, issue.id or
+  comment.id, raw body)` — the same body always derives the same id.
+- **`source`** — `//jira/<site host>`, the host taken from the payload's
+  own `self` URL (`issue.self`, then `user.self`, `comment.self`,
+  `project.self`); `//jira/unknown` when none is present or parseable. No
+  environment variable names the site — catamorbius never needs to know it
+  ahead of time.
+- **`type` (mechanical, no allowlist)** — `webhookEvent` has an optional
+  `jira:` prefix stripped, `_` replaced with `.`, and
+  `com.atlassian.jira.` prefixed: `jira:issue_updated` →
+  `com.atlassian.jira.issue.updated`; `comment_created` →
+  `com.atlassian.jira.comment.created`. A `webhookEvent` value this code
+  has never seen types just as mechanically — there is no list of known
+  event names anywhere in the adapter. A missing `webhookEvent`, or a body
+  that isn't valid JSON at all, becomes one `com.atlassian.jira.unknown`
+  event with the raw payload retained; `toEvents` never throws.
+- **`time`** — `body.timestamp` (epoch milliseconds) as RFC 3339 when
+  present and parseable, else the receipt time. The docs never state the
+  unit in prose — **UNDOCUMENTED**, inferred from the one example value in
+  Atlassian's docs (`1606480436302`, which is only sane as milliseconds).
+- **`subject`** — `issue.key` when the body carries an `issue` (this
+  covers `comment_*`/`worklog_*` payloads too, when they happen to include
+  one); else `project.key`; else `sprint.id` / `version.id` / `board.id`
+  as a string; else omitted.
+- **Does a `comment_*`/`worklog_*` payload carry a top-level `issue`
+  object? UNDOCUMENTED.** Atlassian's docs never say either way. The
+  adapter hedges: it works whether `issue` is present or absent, and the
+  fixtures cover both shapes.
+- **`data.raw.headers`** retains `content-type`, `user-agent`, and the
+  documented `x-atlassian-*` headers; it never retains anything whose name
+  contains `signature` or `token` — the adapter drops those itself, ahead
+  of (and independent from) the generic redaction ingress already applies
+  to every provider.
+
+#### Register a Jira Cloud webhook
+
+In the target Jira Cloud site, go to **Settings → System → WebHooks** (or
+use `POST /rest/webhooks/1.0/webhook` directly) and register a webhook
+pointing at `https://<your catamorbius host>/webhooks/jira`. Pick the
+events it should fire for from Jira's documented catalog (issue, comment,
+worklog, sprint, board, version, project, user, and more). Set the
+webhook's **secret** to the same value you configure as
+`WEBHOOK_SECRET_JIRA` on catamorbius — this is what Jira uses to HMAC-sign
+each delivery, and what catamorbius uses to verify it. No other
+configuration (URL query params, custom headers) is needed or used.
+
 ## Endpoints
 
 - **`POST /webhooks/<provider>`**

@@ -1,0 +1,8 @@
+{
+  "secret": "It's a Secret to Everybody",
+  "headers": {
+    "x-hub-signature": "not-a-valid-signature"
+  },
+  "body": "Hello World!",
+  "expectedReason": "malformed x-hub-signature header"
+}
