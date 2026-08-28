@@ -4,6 +4,7 @@ import { buildIngress } from "../../src/ingress/index.js";
 import { open } from "../../src/store/index.js";
 import { loadConfig } from "../../src/config.js";
 import { createCloudEvent } from "../../src/events/index.js";
+import type { CloudEvent } from "../../src/events/types.js";
 import { createFakeAdapter, type FakeAdapterOptions } from "../support/fake-adapter.js";
 
 function makeApp(adapterOpts: FakeAdapterOptions = {}, envOverrides: Record<string, string> = {}) {
@@ -96,6 +97,20 @@ describe("ingress", () => {
     const rows = store.read();
     expect(rows[0]!.event.type).toBe("fake.unknown");
     expect(rows[0]!.event.data.raw.body).toBe("not json{{{");
+  });
+
+  test("adapter returns a non-conforming envelope -> stored as <provider>.unknown, no throw", async () => {
+    const malformed = { specversion: "1.0", id: "", source: "", type: "", time: "" } as unknown as CloudEvent;
+    const { app, store } = makeApp(
+      { verifyResult: { ok: true }, toEvents: () => [malformed] },
+      { WEBHOOK_SECRET_FAKE: "s" },
+    );
+    const res = await post(app, "fake", JSON.stringify({ ok: 1 }));
+    expect(res.status).toBe(202);
+    const body = (await res.json()) as { events: Array<{ type: string }> };
+    expect(body.events[0]!.type).toBe("fake.unknown");
+    const rows = store.read();
+    expect(rows[0]!.event.type).toBe("fake.unknown");
   });
 
   test("the same id delivered twice -> one row; second response is duplicate with the same seq", async () => {

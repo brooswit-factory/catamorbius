@@ -1,6 +1,6 @@
 import { Elysia } from "elysia";
 import { createHash } from "node:crypto";
-import { createCloudEvent, type CloudEvent } from "../events/index.js";
+import { createCloudEvent, isCloudEvent, type CloudEvent } from "../events/index.js";
 import type { ProviderAdapter } from "../adapters/types.js";
 import type { Config } from "../config.js";
 import type { Store } from "../store/index.js";
@@ -74,8 +74,16 @@ export function buildIngress({ config, store, adapters }: IngressDeps) {
 
     let events: CloudEvent[];
     try {
-      events = adapter.toEvents(rawBody, headers);
+      const produced = adapter.toEvents(rawBody, headers);
+      if (!produced.every(isCloudEvent)) {
+        throw new Error(`adapter "${adapter.provider}" returned a non-conforming CloudEvent`);
+      }
+      events = produced;
     } catch {
+      // Either toEvents threw, or it returned something that isn't a valid
+      // CloudEvent — an adapter failure must never surface as a 5xx, since
+      // that would make the provider retry forever with the event never
+      // entering the log. Store the delivery generically instead.
       events = [wrapUnknown(adapter.provider, rawBody, headers)];
     }
 
