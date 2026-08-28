@@ -1,0 +1,11 @@
+{
+  "action": "did",
+  "widget": { "id": 1, "name": "sprocket" },
+  "repository": {
+    "id": 1296269,
+    "full_name": "octocat/Hello-World",
+    "html_url": "https://github.com/octocat/Hello-World",
+    "owner": { "login": "octocat", "id": 1 }
+  },
+  "sender": { "login": "octocat", "id": 1 }
+}
