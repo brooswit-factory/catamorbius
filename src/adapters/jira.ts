@@ -61,13 +61,13 @@ function deriveId(headers: Record<string, string>, body: Record<string, unknown>
 }
 
 /** body.timestamp is epoch millis per docs (c) (UNDOCUMENTED as prose, inferred from the example value); else receipt time. */
-function deriveTime(body: Record<string, unknown> | undefined): string {
+function deriveTime(body: Record<string, unknown> | undefined, receiptTime: string): string {
   const timestamp = body?.timestamp;
   if (typeof timestamp === "number" && Number.isFinite(timestamp)) {
     const date = new Date(timestamp);
     if (!Number.isNaN(date.getTime())) return date.toISOString();
   }
-  return new Date().toISOString();
+  return receiptTime;
 }
 
 function deriveSubject(body: Record<string, unknown> | undefined): string | undefined {
@@ -156,7 +156,7 @@ function deriveSummary(
 }
 
 /** content-type, user-agent, and the documented x-atlassian-* headers — never a signature/token-bearing header. */
-function retainHeaders(headers: Record<string, string>): Record<string, string> {
+function retainedHeaders(headers: Record<string, string>): Record<string, string> {
   const out: Record<string, string> = {};
   for (const [name, value] of Object.entries(headers)) {
     const lower = name.toLowerCase();
@@ -166,75 +166,90 @@ function retainHeaders(headers: Record<string, string>): Record<string, string> 
   return out;
 }
 
-/** HMAC of the raw body per docs/jira-webhooks.md (a): header is `<method>=<hex>` (WebSub-style),
- * method read from the header rather than assumed. Constant-time compare, length guarded first. */
+/**
+ * HMAC of the raw body per docs/jira-webhooks.md (a): header is `<method>=<hex>` (WebSub-style),
+ * method read from the header rather than assumed. Constant-time compare, length guarded first.
+ * Never throws.
+ */
 function verify(headers: Record<string, string>, rawBody: string | Uint8Array, secret: string): VerifyResult {
-  const header = headers["x-hub-signature"];
-  if (!header) return { ok: false, reason: "missing x-hub-signature header" };
+  try {
+    const header = headers["x-hub-signature"];
+    if (!header) return { ok: false, reason: "missing x-hub-signature header" };
 
-  const match = /^([a-zA-Z0-9-]+)=([0-9a-fA-F]+)$/.exec(header);
-  if (!match) return { ok: false, reason: "malformed x-hub-signature header" };
-  const method = match[1]!;
-  const signatureHex = match[2]!;
+    const match = /^([a-zA-Z0-9-]+)=([0-9a-fA-F]+)$/.exec(header);
+    if (!match) return { ok: false, reason: "malformed x-hub-signature header" };
+    const method = match[1]!;
+    const signatureHex = match[2]!;
 
-  if (!SUPPORTED_HMAC_METHODS.has(method.toLowerCase())) {
-    return { ok: false, reason: `unsupported signature method: ${method}` };
-  }
+    if (!SUPPORTED_HMAC_METHODS.has(method.toLowerCase())) {
+      return { ok: false, reason: `unsupported signature method: ${method}` };
+    }
 
-  const expected = createHmac(method.toLowerCase(), secret).update(toBuffer(rawBody)).digest();
-  const received = Buffer.from(signatureHex, "hex");
-  if (received.length !== expected.length) {
-    return { ok: false, reason: "signature length mismatch" };
+    const expected = createHmac(method.toLowerCase(), secret).update(toBuffer(rawBody)).digest();
+    const received = Buffer.from(signatureHex, "hex");
+    if (received.length !== expected.length) {
+      return { ok: false, reason: "signature length mismatch" };
+    }
+    if (!timingSafeEqual(received, expected)) {
+      return { ok: false, reason: "signature mismatch" };
+    }
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, reason: `verification error: ${err instanceof Error ? err.message : String(err)}` };
   }
-  if (!timingSafeEqual(received, expected)) {
-    return { ok: false, reason: "signature mismatch" };
-  }
-  return { ok: true };
 }
 
-/** Never throws — an unparseable body or a JSON body with no webhookEvent becomes one com.atlassian.jira.unknown event. */
-function toEvents(rawBody: string | Uint8Array, headers: Record<string, string>): CloudEvent[] {
-  const text = typeof rawBody === "string" ? rawBody : Buffer.from(rawBody).toString("utf8");
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(text);
-  } catch {
-    parsed = text;
-  }
+function unknownEvent(headers: Record<string, string>, rawBody: string | Uint8Array, body: unknown, receiptTime: string): CloudEvent {
+  const record = asRecord(body);
+  const siteHost = deriveSiteHost(record);
+  return createCloudEvent({
+    id: deriveId(headers, record, rawBody),
+    source: siteHost ? `//jira/${siteHost}` : "//jira/unknown",
+    type: "com.atlassian.jira.unknown",
+    time: deriveTime(record, receiptTime),
+    raw: { body, headers: retainedHeaders(headers) },
+  });
+}
 
-  const body = asRecord(parsed);
-  if (!body || typeof body.webhookEvent !== "string") {
+/**
+ * Mechanically types every Jira delivery — no allowlist of event names. An
+ * unrecognizable delivery (body not JSON, or JSON with no webhookEvent) is
+ * stored as a single com.atlassian.jira.unknown event. Never throws.
+ */
+function toEvents(rawBody: string | Uint8Array, headers: Record<string, string>): CloudEvent[] {
+  const receiptTime = new Date().toISOString();
+  try {
+    const text = typeof rawBody === "string" ? rawBody : Buffer.from(rawBody).toString("utf8");
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(text);
+    } catch {
+      parsed = text;
+    }
+
+    const body = asRecord(parsed);
+    if (!body || typeof body.webhookEvent !== "string") {
+      return [unknownEvent(headers, rawBody, parsed, receiptTime)];
+    }
+
+    const type = typeFromWebhookEvent(body.webhookEvent);
     const siteHost = deriveSiteHost(body);
+    const subject = deriveSubject(body);
+
     return [
       createCloudEvent({
         id: deriveId(headers, body, rawBody),
         source: siteHost ? `//jira/${siteHost}` : "//jira/unknown",
-        type: "com.atlassian.jira.unknown",
-        time: deriveTime(body),
-        raw: { body: parsed, headers: retainHeaders(headers) },
+        type,
+        time: deriveTime(body, receiptTime),
+        ...(subject !== undefined ? { subject } : {}),
+        raw: { body: parsed, headers: retainedHeaders(headers) },
+        summary: deriveSummary(type, body, subject, siteHost),
       }),
     ];
+  } catch {
+    return [unknownEvent(headers, rawBody, typeof rawBody === "string" ? rawBody : Buffer.from(rawBody).toString("utf8"), receiptTime)];
   }
-
-  const type = typeFromWebhookEvent(body.webhookEvent);
-  const siteHost = deriveSiteHost(body);
-  const subject = deriveSubject(body);
-
-  return [
-    createCloudEvent({
-      id: deriveId(headers, body, rawBody),
-      source: siteHost ? `//jira/${siteHost}` : "//jira/unknown",
-      type,
-      time: deriveTime(body),
-      ...(subject !== undefined ? { subject } : {}),
-      raw: { body: parsed, headers: retainHeaders(headers) },
-      summary: deriveSummary(type, body, subject, siteHost),
-    }),
-  ];
 }
 
-export const jiraAdapter: ProviderAdapter = {
-  provider: "jira",
-  verify,
-  toEvents,
-};
+export const jira: ProviderAdapter = { provider: "jira", verify, toEvents };

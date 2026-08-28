@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { jiraAdapter } from "../../../src/adapters/jira.js";
+import { jira } from "../../../src/adapters/jira.js";
 
 const FIXTURES_DIR = join(import.meta.dir, "../../fixtures/jira");
 
@@ -38,7 +38,7 @@ function withoutHeader(headers: Record<string, string>, name: string): Record<st
 describe("jira adapter — toEvents — documented shapes", () => {
   test("jira:issue_created", () => {
     const fixture = loadDelivery("issue-created");
-    const [event] = jiraAdapter.toEvents(bodyText(fixture), fixture.headers);
+    const [event] = jira.toEvents(bodyText(fixture), fixture.headers);
     expect(event).toBeDefined();
     expect(event!.id).toBe("11111111-1111-1111-1111-111111111111");
     expect(event!.source).toBe("//jira/your-domain.atlassian.net");
@@ -56,7 +56,7 @@ describe("jira adapter — toEvents — documented shapes", () => {
 
   test("jira:issue_updated (with changelog) — the literal documented example", () => {
     const fixture = loadDelivery("issue-updated");
-    const [event] = jiraAdapter.toEvents(bodyText(fixture), fixture.headers);
+    const [event] = jira.toEvents(bodyText(fixture), fixture.headers);
     expect(event!.id).toBe("22222222-2222-2222-2222-222222222222");
     expect(event!.source).toBe("//jira/your-domain.atlassian.net");
     expect(event!.type).toBe("com.atlassian.jira.issue.updated");
@@ -73,7 +73,7 @@ describe("jira adapter — toEvents — documented shapes", () => {
 
   test("jira:issue_deleted", () => {
     const fixture = loadDelivery("issue-deleted");
-    const [event] = jiraAdapter.toEvents(bodyText(fixture), fixture.headers);
+    const [event] = jira.toEvents(bodyText(fixture), fixture.headers);
     expect(event!.id).toBe("33333333-3333-3333-3333-333333333333");
     expect(event!.source).toBe("//jira/your-domain.atlassian.net");
     expect(event!.type).toBe("com.atlassian.jira.issue.deleted");
@@ -90,7 +90,7 @@ describe("jira adapter — toEvents — documented shapes", () => {
 
   test("comment_created, with a top-level issue object", () => {
     const fixture = loadDelivery("comment-created-with-issue");
-    const [event] = jiraAdapter.toEvents(bodyText(fixture), fixture.headers);
+    const [event] = jira.toEvents(bodyText(fixture), fixture.headers);
     expect(event!.id).toBe("44444444-4444-4444-4444-444444444444");
     expect(event!.source).toBe("//jira/your-domain.atlassian.net");
     expect(event!.type).toBe("com.atlassian.jira.comment.created");
@@ -107,7 +107,7 @@ describe("jira adapter — toEvents — documented shapes", () => {
 
   test("comment_created, hedge case: no top-level issue object (UNDOCUMENTED whether one exists)", () => {
     const fixture = loadDelivery("comment-created-without-issue");
-    const [event] = jiraAdapter.toEvents(bodyText(fixture), fixture.headers);
+    const [event] = jira.toEvents(bodyText(fixture), fixture.headers);
     expect(event!.id).toBe("55555555-5555-5555-5555-555555555555");
     expect(event!.source).toBe("//jira/your-domain.atlassian.net");
     expect(event!.type).toBe("com.atlassian.jira.comment.created");
@@ -119,7 +119,7 @@ describe("jira adapter — toEvents — documented shapes", () => {
 
   test("comment_updated", () => {
     const fixture = loadDelivery("comment-updated");
-    const [event] = jiraAdapter.toEvents(bodyText(fixture), fixture.headers);
+    const [event] = jira.toEvents(bodyText(fixture), fixture.headers);
     expect(event!.id).toBe("66666666-6666-6666-6666-666666666666");
     expect(event!.type).toBe("com.atlassian.jira.comment.updated");
     expect(event!.time).toBe("2020-11-27T12:48:20.000Z");
@@ -135,7 +135,7 @@ describe("jira adapter — toEvents — documented shapes", () => {
 
   test("worklog_created, with a top-level issue object", () => {
     const fixture = loadDelivery("worklog-created-with-issue");
-    const [event] = jiraAdapter.toEvents(bodyText(fixture), fixture.headers);
+    const [event] = jira.toEvents(bodyText(fixture), fixture.headers);
     expect(event!.id).toBe("77777777-7777-7777-7777-777777777777");
     expect(event!.type).toBe("com.atlassian.jira.worklog.created");
     expect(event!.time).toBe("2020-11-27T12:50:00.000Z");
@@ -151,7 +151,7 @@ describe("jira adapter — toEvents — documented shapes", () => {
 
   test("worklog_created, hedge case: no top-level issue object", () => {
     const fixture = loadDelivery("worklog-created-without-issue");
-    const [event] = jiraAdapter.toEvents(bodyText(fixture), fixture.headers);
+    const [event] = jira.toEvents(bodyText(fixture), fixture.headers);
     expect(event!.id).toBe("88888888-8888-8888-8888-888888888888");
     expect(event!.type).toBe("com.atlassian.jira.worklog.created");
     expect(event!.time).toBe("2020-11-27T12:51:40.000Z");
@@ -162,7 +162,7 @@ describe("jira adapter — toEvents — documented shapes", () => {
 
   test("a foreign webhookEvent value flows through with mechanical typing — no allowlist", () => {
     const fixture = loadDelivery("foreign-event");
-    const [event] = jiraAdapter.toEvents(bodyText(fixture), fixture.headers);
+    const [event] = jira.toEvents(bodyText(fixture), fixture.headers);
     expect(event!.id).toBe("99999999-9999-9999-9999-999999999999");
     expect(event!.type).toBe("com.atlassian.jira.future.thing.happened");
     expect(event!.time).toBe("2020-11-27T12:53:20.000Z");
@@ -178,7 +178,7 @@ describe("jira adapter — toEvents — documented shapes", () => {
   test("non-JSON body -> single com.atlassian.jira.unknown event, raw intact, never throws", () => {
     const text = readFileSync(join(FIXTURES_DIR, "non-json-body.txt"), "utf8");
     const headers = { "content-type": "text/plain", "x-atlassian-webhook-flow": "Primary" };
-    const [event] = jiraAdapter.toEvents(text, headers);
+    const [event] = jira.toEvents(text, headers);
     expect(event!.type).toBe("com.atlassian.jira.unknown");
     expect(event!.source).toBe("//jira/unknown");
     expect(event!.data.raw.body).toBe(text);
@@ -187,7 +187,7 @@ describe("jira adapter — toEvents — documented shapes", () => {
 
   test("JSON body with no webhookEvent -> single com.atlassian.jira.unknown event, raw intact", () => {
     const headers = { "content-type": "application/json" };
-    const [event] = jiraAdapter.toEvents(JSON.stringify({ hello: "world" }), headers);
+    const [event] = jira.toEvents(JSON.stringify({ hello: "world" }), headers);
     expect(event!.type).toBe("com.atlassian.jira.unknown");
     expect(event!.source).toBe("//jira/unknown");
     expect(event!.data.raw.body).toEqual({ hello: "world" });
@@ -201,7 +201,7 @@ describe("jira adapter — toEvents — documented shapes", () => {
       user: { accountId: "99:acct-only" },
       issue: { id: "1", self: "https://your-domain.atlassian.net/rest/api/2/issue/1", key: "JRA-1" },
     };
-    const [event] = jiraAdapter.toEvents(JSON.stringify(body), headers);
+    const [event] = jira.toEvents(JSON.stringify(body), headers);
     expect(event!.data.summary.actor).toBe("99:acct-only");
   });
 
@@ -212,7 +212,7 @@ describe("jira adapter — toEvents — documented shapes", () => {
       webhookEvent: "jira:issue_created",
       issue: { id: "1", self: "not a url", key: "JRA-1" },
     };
-    const [event] = jiraAdapter.toEvents(JSON.stringify(body), headers);
+    const [event] = jira.toEvents(JSON.stringify(body), headers);
     expect(event!.source).toBe("//jira/unknown");
   });
 });
@@ -227,7 +227,7 @@ describe("jira adapter — toEvents — headers", () => {
       authorization: "Bearer nope",
       "x-random-other": "dropped",
     };
-    const [event] = jiraAdapter.toEvents(bodyText(fixture), headers);
+    const [event] = jira.toEvents(bodyText(fixture), headers);
     expect(event!.data.raw.headers).toEqual({
       "content-type": "application/json",
       "user-agent": "AtlassianWebhook/1.0",
@@ -240,7 +240,7 @@ describe("jira adapter — toEvents — headers", () => {
 describe("jira adapter — id derivation", () => {
   test("x-atlassian-webhook-identifier is used directly as id when present", () => {
     const fixture = loadDelivery("issue-created");
-    const [event] = jiraAdapter.toEvents(bodyText(fixture), fixture.headers);
+    const [event] = jira.toEvents(bodyText(fixture), fixture.headers);
     expect(event!.id).toBe(fixture.headers["x-atlassian-webhook-identifier"]!);
   });
 
@@ -248,16 +248,16 @@ describe("jira adapter — id derivation", () => {
     const fixture = loadDelivery("issue-updated");
     const headers = withoutHeader(fixture.headers, "x-atlassian-webhook-identifier");
     const body = bodyText(fixture);
-    const [first] = jiraAdapter.toEvents(body, headers);
-    const [second] = jiraAdapter.toEvents(body, headers);
+    const [first] = jira.toEvents(body, headers);
+    const [second] = jira.toEvents(body, headers);
     expect(first!.id).toBe(second!.id);
   });
 
   test("without the identifier header, distinct fixtures never collide", () => {
     const a = loadDelivery("issue-created");
     const b = loadDelivery("issue-deleted");
-    const [eventA] = jiraAdapter.toEvents(bodyText(a), withoutHeader(a.headers, "x-atlassian-webhook-identifier"));
-    const [eventB] = jiraAdapter.toEvents(bodyText(b), withoutHeader(b.headers, "x-atlassian-webhook-identifier"));
+    const [eventA] = jira.toEvents(bodyText(a), withoutHeader(a.headers, "x-atlassian-webhook-identifier"));
+    const [eventB] = jira.toEvents(bodyText(b), withoutHeader(b.headers, "x-atlassian-webhook-identifier"));
     expect(eventA!.id).not.toBe(eventB!.id);
   });
 });
@@ -265,7 +265,7 @@ describe("jira adapter — id derivation", () => {
 describe("jira adapter — verify", () => {
   test("known-good vector from Atlassian's docs -> ok", () => {
     const fixture = loadVerify("verify-known-good");
-    const result = jiraAdapter.verify(fixture.headers, fixture.body, fixture.secret);
+    const result = jira.verify(fixture.headers, fixture.body, fixture.secret);
     expect(result).toEqual({ ok: true });
   });
 
@@ -281,7 +281,7 @@ describe("jira adapter — verify", () => {
   for (const name of badCases) {
     test(`${name} -> ok:false with its documented reason`, () => {
       const fixture = loadVerify(name);
-      const result = jiraAdapter.verify(fixture.headers, fixture.body, fixture.secret);
+      const result = jira.verify(fixture.headers, fixture.body, fixture.secret);
       expect(result.ok).toBe(false);
       if (!result.ok) expect(result.reason).toBe(fixture.expectedReason!);
     });

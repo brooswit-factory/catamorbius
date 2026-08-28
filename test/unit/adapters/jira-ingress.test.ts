@@ -6,7 +6,7 @@ import { Elysia } from "elysia";
 import { buildIngress } from "../../../src/ingress/index.js";
 import { open } from "../../../src/store/index.js";
 import { loadConfig } from "../../../src/config.js";
-import { jiraAdapter } from "../../../src/adapters/jira.js";
+import { jira } from "../../../src/adapters/jira.js";
 
 const FIXTURES_DIR = join(import.meta.dir, "../../fixtures/jira");
 const TEST_SECRET = "catamorbius-jira-ingress-test-secret";
@@ -22,7 +22,7 @@ const badSignature = `sha256=${createHmac("sha256", "not-the-secret").update(raw
 function makeApp(envOverrides: Record<string, string> = {}) {
   const store = open(":memory:");
   const config = loadConfig(envOverrides);
-  const app = new Elysia().use(buildIngress({ config, store, adapters: [jiraAdapter] }));
+  const app = new Elysia().use(buildIngress({ config, store, adapters: [jira] }));
   return { app, store };
 }
 
