@@ -61,4 +61,26 @@ describe("events", () => {
     expect(isCloudEvent({ specversion: "1.0" })).toBe(false);
     expect(isCloudEvent({ specversion: "1.0", id: "1", source: "s", type: "t", time: "x", datacontenttype: "application/json", data: {}, subject: 5 })).toBe(false);
   });
+
+  function topLevelValid(data: unknown) {
+    return { specversion: "1.0", id: "1", source: "//x/y", type: "x.y", time: "t", datacontenttype: "application/json", data };
+  }
+
+  test("isCloudEvent rejects a top-level-valid envelope with a broken data", () => {
+    expect(isCloudEvent(topLevelValid({}))).toBe(false);
+    expect(isCloudEvent(topLevelValid({ raw: {}, summary: {} }))).toBe(false);
+    expect(isCloudEvent(topLevelValid({ raw: { headers: {} }, summary: {} }))).toBe(false);
+    expect(isCloudEvent(topLevelValid({ raw: { body: {}, headers: { a: 1 } }, summary: {} }))).toBe(false);
+    expect(isCloudEvent(topLevelValid({ raw: { body: {}, headers: {} }, summary: null }))).toBe(false);
+  });
+
+  test("isCloudEvent accepts data.raw.body of null/0/\"\" as long as the key is present", () => {
+    expect(isCloudEvent(topLevelValid({ raw: { body: null, headers: {} }, summary: {} }))).toBe(true);
+    expect(isCloudEvent(topLevelValid({ raw: { body: 0, headers: {} }, summary: {} }))).toBe(true);
+    expect(isCloudEvent(topLevelValid({ raw: { body: "", headers: {} }, summary: {} }))).toBe(true);
+  });
+
+  test("isCloudEvent accepts a fully conforming envelope", () => {
+    expect(isCloudEvent(topLevelValid({ raw: { body: { a: 1 }, headers: { "x-a": "1" } }, summary: {} }))).toBe(true);
+  });
 });
