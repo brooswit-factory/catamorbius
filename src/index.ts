@@ -1,10 +1,9 @@
-import { Elysia } from "elysia";
+import { buildApp } from "./server.js";
 
-export const app = new Elysia().get("/healthz", () => ({ ok: true }));
+export { buildApp } from "./server.js";
 
 export function start(port = Number(process.env.PORT ?? 3000)) {
-  return app.listen(port);
+  return buildApp().listen(port);
 }
 
 if (import.meta.main) start();
-
