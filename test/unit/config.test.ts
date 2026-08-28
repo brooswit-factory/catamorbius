@@ -8,6 +8,7 @@ describe("config", () => {
     expect(c.dbPath).toBe("./data/catamorbius.sqlite");
     expect(c.tokens).toEqual([]);
     expect(c.devMode).toBe(false);
+    expect(c.heartbeatMs).toBe(15000);
     expect(c.secretFor("github")).toBeUndefined();
   });
 
@@ -37,5 +38,19 @@ describe("config", () => {
 
   test("blank token list yields an empty array, not [\"\"]", () => {
     expect(loadConfig({ CATAMORBIUS_TOKENS: "" }).tokens).toEqual([]);
+  });
+
+  test("heartbeatMs reads CATAMORBIUS_HEARTBEAT_MS", () => {
+    expect(loadConfig({ CATAMORBIUS_HEARTBEAT_MS: "100" }).heartbeatMs).toBe(100);
+  });
+
+  test("heartbeatMs falls back to the default when unset", () => {
+    expect(loadConfig({}).heartbeatMs).toBe(15000);
+  });
+
+  test("heartbeatMs falls back to the default on a non-numeric or non-positive value", () => {
+    expect(loadConfig({ CATAMORBIUS_HEARTBEAT_MS: "not-a-number" }).heartbeatMs).toBe(15000);
+    expect(loadConfig({ CATAMORBIUS_HEARTBEAT_MS: "-5" }).heartbeatMs).toBe(15000);
+    expect(loadConfig({ CATAMORBIUS_HEARTBEAT_MS: "0" }).heartbeatMs).toBe(15000);
   });
 });
