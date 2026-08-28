@@ -99,6 +99,74 @@ canonical section later provider stories extend with their own
 TypeScript types and `src/events/index.ts` for the `createCloudEvent`
 constructor and `isCloudEvent` validator.
 
+### GitHub
+
+The `github` adapter (`src/adapters/github.ts`) types every GitHub webhook
+delivery mechanically — there is no allowlist of event names anywhere in
+the file, so an event GitHub adds tomorrow is typed correctly today.
+
+- **Verification** — HMAC-SHA256 over the exact raw request body bytes,
+  hex digest, compared constant-time (`node:crypto`'s `timingSafeEqual`)
+  against the `x-hub-signature-256: sha256=<hex>` header, per
+  [Validating webhook deliveries](https://docs.github.com/en/webhooks/using-webhooks/validating-webhook-deliveries).
+  The legacy sha1 `x-hub-signature` header is ignored entirely — its
+  presence alone never authenticates a delivery. A missing header, a
+  header not prefixed `sha256=`, non-hex characters, hex of the wrong
+  length, and a correct-length-but-wrong digest each fail with a distinct
+  reason; verification never throws.
+- **`id`** — the `x-github-delivery` header (GitHub's per-delivery GUID;
+  redeliveries reuse it, which is what makes dedupe work). If that header
+  is absent, the sha256 hex of the headers and body.
+- **`source`** — `//github/<owner>`, where `<owner>` is
+  `body.repository.owner.login`, else `body.organization.login`, else
+  `body.installation.account.login`, else `//github/unknown`.
+- **`type`** — `com.github.<x-github-event>`, plus `.<body.action>` when
+  `body.action` is a string. So `pull_request` + `opened` becomes
+  `com.github.pull_request.opened`; `push` (no action) becomes
+  `com.github.push`; an event name this code has never heard of, say
+  `x-github-event: some_future_thing` with `action: "did"`, becomes
+  `com.github.some_future_thing.did` — fully typed, raw intact, zero
+  bespoke code.
+- **`time`** — the most specific documented timestamp the delivery
+  carries (e.g. `head_commit.timestamp` for `push`, or the most specific
+  entity's `updated_at` / `submitted_at` / `published_at` / `created_at`
+  otherwise), normalized to RFC 3339. Falls back to receipt time when no
+  such timestamp is present or it fails to parse.
+- **`subject`** — `<repository.full_name>#<number>` when `body.pull_request`
+  or `body.issue` is present (e.g. `owner/repo#42`); else
+  `<repository.full_name>@<ref>` for a push (e.g.
+  `owner/repo@refs/heads/main`); else `body.repository.full_name` when
+  present; else `undefined`.
+- **`summary`** — all fields best-effort: `actor` is `body.sender.login`;
+  `action` is `body.action` or else the event name; `entity` is derived
+  from whichever of `pull_request` / `issue` / a push `ref` /
+  `repository` the body carries (`kind`, `key` = the subject, `url` =
+  that entity's `html_url`); `title` is the pull request's or issue's
+  title, else the first line of `head_commit.message`, else the
+  repository's `full_name`.
+- **Retained headers** — `data.raw.headers` keeps only headers starting
+  with `x-github-` (delivery, event, hook-id, hook-installation-target-id,
+  hook-installation-target-type, ...) plus `content-type` and
+  `user-agent`. The signature headers (`x-hub-signature`,
+  `x-hub-signature-256`) are never retained.
+- **Unrecognizable deliveries** — a delivery with no `x-github-event`
+  header, or a body that isn't JSON, is stored as a single
+  `com.github.unknown` event (`id` per the rule above, `source`
+  `//github/unknown`, `data.raw.body` the parsed JSON or the raw body
+  string, headers retained per the allowlist). `toEvents` never throws.
+
+Fixture provenance: every payload under `test/fixtures/github/` is written
+from field shapes GitHub documents (top-level event fields and action
+values from https://docs.github.com/en/webhooks/webhook-events-and-payloads;
+nested entity shapes from the corresponding REST API reference pages), and
+`test/fixtures/github/README.md` cites the exact doc URL(s) each fixture
+was taken from — nothing is invented from memory.
+
+**Register a GitHub webhook** — content type `application/json`, secret =
+`WEBHOOK_SECRET_GITHUB`. Subscribe to whichever events your consumers need;
+this adapter accepts and types every one of them, so there is no minimum
+subscription list to satisfy the gateway itself.
+
 ## Endpoints
 
 - **`POST /webhooks/<provider>`**

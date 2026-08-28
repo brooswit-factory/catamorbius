@@ -1,0 +1,24 @@
+{
+  "action": "submitted",
+  "pull_request": {
+    "number": 42,
+    "title": "Add HMAC verification for GitHub webhooks",
+    "html_url": "https://github.com/octocat/Hello-World/pull/42"
+  },
+  "review": {
+    "id": 900001,
+    "user": { "login": "octocat", "id": 1 },
+    "body": "Looks good.",
+    "state": "approved",
+    "html_url": "https://github.com/octocat/Hello-World/pull/42#pullrequestreview-900001",
+    "submitted_at": "2026-08-20T12:00:00Z",
+    "commit_id": "abc1234def5678abc1234def5678abc1234def5"
+  },
+  "repository": {
+    "id": 1296269,
+    "full_name": "octocat/Hello-World",
+    "html_url": "https://github.com/octocat/Hello-World",
+    "owner": { "login": "octocat", "id": 1 }
+  },
+  "sender": { "login": "octocat", "id": 1 }
+}
