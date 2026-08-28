@@ -4,6 +4,7 @@ import { open, type Store } from "./store/index.js";
 import { adapters as defaultAdapters } from "./adapters/index.js";
 import type { ProviderAdapter } from "./adapters/types.js";
 import { buildIngress } from "./ingress/index.js";
+import { buildEgress } from "./egress/index.js";
 
 export interface BuildAppOptions {
   config?: Config;
@@ -17,8 +18,10 @@ export function buildApp(options: BuildAppOptions = {}) {
   const store = options.store ?? open(config.dbPath);
   const adapters = options.adapters ?? defaultAdapters;
   const ingress = buildIngress({ config, store, adapters });
+  const egress = buildEgress({ config, store });
 
   return new Elysia()
     .use(ingress)
+    .use(egress)
     .get("/healthz", () => ({ ok: true, seq: store.latestSeq() }));
 }
