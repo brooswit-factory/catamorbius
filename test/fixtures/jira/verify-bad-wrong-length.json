@@ -1,0 +1,8 @@
+{
+  "secret": "It's a Secret to Everybody",
+  "headers": {
+    "x-hub-signature": "sha256=deadbeef"
+  },
+  "body": "Hello World!",
+  "expectedReason": "signature length mismatch"
+}

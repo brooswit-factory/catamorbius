@@ -1,6 +1,6 @@
 {
   "name": "catamorbius",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "description": "Webhook → CloudEvents → SSE event gateway (Jira, GitHub, extensible) with lossless retention and resumable streams",
   "license": "MIT",
   "type": "module",

@@ -1,0 +1,31 @@
+{
+  "headers": {
+    "content-type": "application/json",
+    "x-atlassian-webhook-identifier": "88888888-8888-8888-8888-888888888888",
+    "x-atlassian-webhook-flow": "Primary"
+  },
+  "body": {
+    "timestamp": 1606481500000,
+    "webhookEvent": "worklog_created",
+    "user": {
+      "self": "https://your-domain.atlassian.net/rest/api/2/user?accountId=99:27935d01-92a7-4687-8272-a9b8d3b2ae2e",
+      "accountId": "99:27935d01-92a7-4687-8272-a9b8d3b2ae2e",
+      "accountType": "atlassian",
+      "displayName": "Bryan Rollins [Atlassian]"
+    },
+    "worklog": {
+      "self": "https://your-domain.atlassian.net/rest/api/3/issue/99291/worklog/100029",
+      "id": "100029",
+      "issueId": "99291",
+      "author": {
+        "self": "https://your-domain.atlassian.net/rest/api/2/user?accountId=99:27935d01-92a7-4687-8272-a9b8d3b2ae2e",
+        "accountId": "99:27935d01-92a7-4687-8272-a9b8d3b2ae2e",
+        "displayName": "Bryan Rollins [Atlassian]"
+      },
+      "started": "2026-08-01T09:30:00.000-0700",
+      "timeSpent": "30m",
+      "timeSpentSeconds": 1800,
+      "created": "2026-08-01T10:15:00.000-0700"
+    }
+  }
+}

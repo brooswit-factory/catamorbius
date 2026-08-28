@@ -1,0 +1,38 @@
+{
+  "headers": {
+    "content-type": "application/json",
+    "x-atlassian-webhook-identifier": "66666666-6666-6666-6666-666666666666",
+    "x-atlassian-webhook-flow": "Primary"
+  },
+  "body": {
+    "timestamp": 1606481300000,
+    "webhookEvent": "comment_updated",
+    "user": {
+      "self": "https://your-domain.atlassian.net/rest/api/2/user?accountId=99:27935d01-92a7-4687-8272-a9b8d3b2ae2e",
+      "accountId": "99:27935d01-92a7-4687-8272-a9b8d3b2ae2e",
+      "accountType": "atlassian",
+      "displayName": "Bryan Rollins [Atlassian]"
+    },
+    "issue": {
+      "id": "99291",
+      "self": "https://your-domain.atlassian.net/rest/api/2/issue/99291",
+      "key": "JRA-20002",
+      "fields": {
+        "summary": "I feel the need for speed"
+      }
+    },
+    "comment": {
+      "self": "https://your-domain.atlassian.net/rest/api/3/issue/JRA-9/comment/252789",
+      "id": "252789",
+      "author": {
+        "self": "https://your-domain.atlassian.net/rest/api/2/user?accountId=99:27935d01-92a7-4687-8272-a9b8d3b2ae2e",
+        "accountId": "99:27935d01-92a7-4687-8272-a9b8d3b2ae2e",
+        "displayName": "Bryan Rollins [Atlassian]"
+      },
+      "body": "Looks good to me. Edited.",
+      "created": "2026-08-01T10:00:00.000-0700",
+      "updated": "2026-08-01T10:10:00.000-0700",
+      "jsdPublic": true
+    }
+  }
+}
