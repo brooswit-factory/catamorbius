@@ -9,8 +9,7 @@ to any particular consumer.
 Four thin layers: **ingress** → **normalize** → **durable log** (`bun:sqlite`;
 the autoincrement `seq` is the stream cursor) → **SSE egress**.
 
-This repo currently implements ingress, normalization, and the durable log.
-SSE egress (`GET /events`) lands in a follow-up story.
+This repo implements all four layers, including SSE egress (`GET /events`).
 
 ### Cursor & durability
 
@@ -44,8 +43,9 @@ comments.
 | `PORT` | HTTP port to listen on. Default `3000`. |
 | `CATAMORBIUS_DB` | Path to the sqlite database file. Default `./data/catamorbius.sqlite`; created on start if missing. `:memory:` is allowed (non-durable, for tests/dev). |
 | `WEBHOOK_SECRET_<PROVIDER>` | Per-provider webhook secret, e.g. `WEBHOOK_SECRET_GITHUB`, `WEBHOOK_SECRET_JIRA` (provider name uppercased). Used by that provider's adapter to verify deliveries. |
-| `CATAMORBIUS_TOKENS` | Comma-separated bearer tokens accepted by `GET /events`. Parsed here; consumed by the upcoming SSE story. |
+| `CATAMORBIUS_TOKENS` | Comma-separated bearer tokens accepted by `GET /events`. |
 | `CATAMORBIUS_DEV_MODE` | Set to exactly `1` to enable dev mode (see below). |
+| `CATAMORBIUS_HEARTBEAT_MS` | Milliseconds between SSE heartbeat comments on `GET /events`. Default `15000`; falls back to the default on a non-numeric or non-positive value. |
 
 **Missing provider secret rule** (never silent, either way):
 - **Default config:** a webhook for a provider with no configured secret is
@@ -111,7 +111,113 @@ constructor and `isCloudEvent` validator.
     malformed body that passes verification is still stored, as a single
     `<provider>.unknown` event.
 - **`GET /healthz`** → `{ ok: true, seq: <latestSeq> }`.
-- **`GET /events`** — coming in the SSE story.
+- **`GET /events`** — see [SSE egress](#sse-egress-get-events) below.
+
+## SSE egress: `GET /events`
+
+Serves stored events as a resumable [server-sent events](https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events)
+stream. Response headers: `Content-Type: text/event-stream`, `Cache-Control:
+no-cache`, `Connection: keep-alive`, and `X-Accel-Buffering: no` (disables
+proxy buffering so events aren't held back).
+
+### Auth
+
+Header auth only — `Authorization: Bearer <token>`, checked in constant time
+against every token in `CATAMORBIUS_TOKENS`.
+
+- **Missing or wrong token** → `401` with `WWW-Authenticate: Bearer`.
+- **No tokens configured, default config** → `503`, and a log line names
+  `CATAMORBIUS_TOKENS`. Never silent.
+- **No tokens configured, `CATAMORBIUS_DEV_MODE=1`** → open (no auth check),
+  with a loud `WARN` line logged on every connection. Never silent.
+
+**Known limitation:** the native browser `EventSource` API cannot set request
+headers, so it cannot supply a bearer token against this endpoint as-is.
+Query-string tokens are intentionally out of scope for this pass — that's a
+future ticket.
+
+### Frame format
+
+The first thing written on every stream is a reconnect hint:
+
+```
+retry: 3000
+
+```
+
+Every event after that is framed exactly as:
+
+```
+event: <type>
+id: <seq>
+data: <the full CloudEvents JSON, one line>
+
+```
+
+`data:` is `JSON.stringify(event)` — the stored CloudEvents envelope
+verbatim. `seq` is not a CloudEvents attribute; it travels only in the `id:`
+field, as the resume cursor.
+
+A heartbeat comment is sent every `CATAMORBIUS_HEARTBEAT_MS` (default
+`15000`) to keep the connection alive through idle periods and intermediary
+timeouts:
+
+```
+: heartbeat
+
+```
+
+### Filters
+
+Optional query params, ANDed together, applied identically to backfilled and
+live events:
+
+| Param | Match |
+| --- | --- |
+| `type` | **Prefix** match, same semantics as the store: `?type=com.github.pull_request` matches `com.github.pull_request.opened`. Case-sensitive; `_` is a literal character, never a wildcard. |
+| `source` | Exact match. |
+| `subject` | Exact match. |
+
+### Cursors & resume
+
+| Request | Behavior |
+| --- | --- |
+| Neither `Last-Event-ID` nor `?from` | Live only — no backfill. |
+| `?from=earliest` | Replay everything, from `seq` 1, then live. |
+| `?from=N` | Replay from `seq >= N` (inclusive), then live. |
+| `Last-Event-ID: N` header | Replay `seq > N` (exclusive), then live. |
+| Both present | **`Last-Event-ID` wins** — `?from` is ignored entirely. This is the reconnect case: a client resends the same URL and the browser/library adds the header automatically. |
+| Cursor beyond the latest `seq` | Live only — not an error. |
+| Non-numeric or negative cursor, either source | `400`. |
+
+The stream is built so no event is ever missed or duplicated across the
+backfill → live boundary, and every frame's `id:` on a connection is strictly
+increasing. (Note: `seq` itself can have gaps — see
+[Cursor & durability](#cursor--durability) — so "no gaps" here means no
+*missed or duplicated events*, not contiguous `seq` numbers.)
+
+### Consumer examples
+
+**curl:**
+
+```sh
+curl -N -H "Authorization: Bearer $TOKEN" "http://localhost:3000/events?from=earliest"
+```
+
+**TypeScript (bun), with the [`eventsource`](https://www.npmjs.com/package/eventsource) package for header support:**
+
+```ts
+import { EventSource } from "eventsource";
+
+const es = new EventSource("http://localhost:3000/events?from=earliest", {
+  fetch: (input, init) =>
+    fetch(input, { ...init, headers: { ...init.headers, Authorization: `Bearer ${process.env.TOKEN}` } }),
+});
+
+es.addEventListener("com.github.pull_request.opened", (event) => {
+  console.log(event.lastEventId, JSON.parse(event.data));
+});
+```
 
 ## Adding a provider
 
