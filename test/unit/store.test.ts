@@ -66,6 +66,20 @@ describe("store", () => {
     expect(store.read({ subject: "K-2" })).toHaveLength(1);
   });
 
+  test("type prefix is an exact character match, not a SQL LIKE pattern", () => {
+    const store = open(":memory:");
+    store.append(ev({ id: "1", type: "com.example.pull_request.opened", source: "//s1" }));
+    store.append(ev({ id: "2", type: "com.example.pullXrequest.opened", source: "//s1" }));
+    store.append(ev({ id: "3", type: "COM.EXAMPLE.other", source: "//s1" }));
+
+    // `_` in the prefix must not act as a SQL LIKE single-char wildcard.
+    expect(store.read({ type: "com.example.pull_request" }).map((r) => r.event.id)).toEqual(["1"]);
+    // The match must be case-sensitive.
+    expect(store.read({ type: "com.example" }).map((r) => r.event.id)).toEqual(["1", "2"]);
+    // Control: an unrelated prefix matches nothing.
+    expect(store.read({ type: "com.zzz" })).toHaveLength(0);
+  });
+
   test("read paging: from/limit", () => {
     const store = open(":memory:");
     for (let i = 1; i <= 5; i++) store.append(ev({ id: String(i) }));

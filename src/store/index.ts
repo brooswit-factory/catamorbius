@@ -100,7 +100,7 @@ export function open(path: string): Store {
     read(query = {}) {
       const clauses = ["seq >= $from"];
       const params: Record<string, string | number> = { $from: query.from ?? 0 };
-      if (query.type !== undefined) { clauses.push("type LIKE $type"); params.$type = `${query.type}%`; }
+      if (query.type !== undefined) { clauses.push("substr(type, 1, length($type)) = $type"); params.$type = query.type; }
       if (query.source !== undefined) { clauses.push("source = $source"); params.$source = query.source; }
       if (query.subject !== undefined) { clauses.push("subject = $subject"); params.$subject = query.subject; }
       let sql = `SELECT * FROM events WHERE ${clauses.join(" AND ")} ORDER BY seq ASC`;
