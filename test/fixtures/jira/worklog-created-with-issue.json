@@ -1,0 +1,39 @@
+{
+  "headers": {
+    "content-type": "application/json",
+    "x-atlassian-webhook-identifier": "77777777-7777-7777-7777-777777777777",
+    "x-atlassian-webhook-flow": "Primary"
+  },
+  "body": {
+    "timestamp": 1606481400000,
+    "webhookEvent": "worklog_created",
+    "user": {
+      "self": "https://your-domain.atlassian.net/rest/api/2/user?accountId=99:27935d01-92a7-4687-8272-a9b8d3b2ae2e",
+      "accountId": "99:27935d01-92a7-4687-8272-a9b8d3b2ae2e",
+      "accountType": "atlassian",
+      "displayName": "Bryan Rollins [Atlassian]"
+    },
+    "issue": {
+      "id": "99291",
+      "self": "https://your-domain.atlassian.net/rest/api/2/issue/99291",
+      "key": "JRA-20002",
+      "fields": {
+        "summary": "I feel the need for speed"
+      }
+    },
+    "worklog": {
+      "self": "https://your-domain.atlassian.net/rest/api/3/issue/99291/worklog/100028",
+      "id": "100028",
+      "issueId": "99291",
+      "author": {
+        "self": "https://your-domain.atlassian.net/rest/api/2/user?accountId=99:27935d01-92a7-4687-8272-a9b8d3b2ae2e",
+        "accountId": "99:27935d01-92a7-4687-8272-a9b8d3b2ae2e",
+        "displayName": "Bryan Rollins [Atlassian]"
+      },
+      "started": "2026-08-01T09:00:00.000-0700",
+      "timeSpent": "1h",
+      "timeSpentSeconds": 3600,
+      "created": "2026-08-01T10:00:00.000-0700"
+    }
+  }
+}

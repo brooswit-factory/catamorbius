@@ -1,0 +1,8 @@
+{
+  "secret": "It's a Secret to Everybody",
+  "headers": {
+    "x-hub-signature": "md5=5eb63bbbe01eeed093cb22bb8f5acdc3"
+  },
+  "body": "Hello World!",
+  "expectedReason": "unsupported signature method: md5"
+}

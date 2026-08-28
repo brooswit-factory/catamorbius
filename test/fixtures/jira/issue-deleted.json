@@ -1,0 +1,26 @@
+{
+  "headers": {
+    "content-type": "application/json",
+    "x-atlassian-webhook-identifier": "33333333-3333-3333-3333-333333333333",
+    "x-atlassian-webhook-flow": "Primary"
+  },
+  "body": {
+    "timestamp": 1606480999000,
+    "webhookEvent": "jira:issue_deleted",
+    "issue_event_type_name": "issue_deleted",
+    "user": {
+      "self": "https://your-domain.atlassian.net/rest/api/2/user?accountId=99:27935d01-92a7-4687-8272-a9b8d3b2ae2e",
+      "accountId": "99:27935d01-92a7-4687-8272-a9b8d3b2ae2e",
+      "accountType": "atlassian",
+      "displayName": "Bryan Rollins [Atlassian]"
+    },
+    "issue": {
+      "id": "99292",
+      "self": "https://your-domain.atlassian.net/rest/api/2/issue/99292",
+      "key": "JRA-20003",
+      "fields": {
+        "summary": "Old issue to delete"
+      }
+    }
+  }
+}
