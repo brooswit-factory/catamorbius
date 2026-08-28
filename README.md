@@ -115,6 +115,10 @@ constructor and `isCloudEvent` validator.
 
 ## Adding a provider
 
+See [`docs/jira-webhooks.md`](docs/jira-webhooks.md) for the Jira Cloud
+provider's research contract (verification, delivery-id dedupe, event
+catalog, headers) — the document a `jira` adapter is implemented against.
+
 Add one file to `src/adapters/` implementing the `ProviderAdapter` contract,
 and one line registering it in `src/adapters/index.ts`. No other file needs
 to change.

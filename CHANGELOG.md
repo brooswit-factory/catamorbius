@@ -11,6 +11,10 @@ The release gate runs only on PRs whose base is `main`; task PRs into a story br
 - **MINOR** — a new feature, or a change to an existing feature that breaks just that feature.
 - **PATCH** — a fix or correction that requires no consumer code changes, or very minor ones.
 
+## [0.0.2] - 2026-08-28
+### Added
+- `docs/jira-webhooks.md`: investigation of Jira Cloud webhook request verification, per-delivery-id dedupe, the documented event catalog and envelope, and delivery headers, against Atlassian's current documentation. CONFIRMED: admin/`/rest/webhooks/1.0/webhook` secret → HMAC-SHA256 `X-Hub-Signature` header (directly usable, no custom header needed); `X-Atlassian-Webhook-Identifier` is stable across retries (usable directly as CloudEvent `id`); the full `webhookEvent` catalog and common envelope. UNDOCUMENTED: `timestamp` unit is only inferable from the example value, not stated; whether `comment_*`/`worklog_*` payloads carry a top-level `issue` object; delivery `Content-Type`/`User-Agent`.
+
 ## [0.0.1] - 2026-08-28
 ### Added
 - CloudEvents 1.0 envelope (`src/events`): types plus a `createCloudEvent` constructor and `isCloudEvent` validator.
