@@ -11,7 +11,7 @@ The release gate runs only on PRs whose base is `main`; task PRs into a story br
 - **MINOR** — a new feature, or a change to an existing feature that breaks just that feature.
 - **PATCH** — a fix or correction that requires no consumer code changes, or very minor ones.
 
-## [0.0.2] - 2026-08-28
+## [0.0.3] - 2026-08-28
 ### Added
 - SSE egress (`src/egress`): `GET /events`, mounted alongside `/healthz` and the webhook routes in `src/server.ts`.
 - Bearer auth against `CATAMORBIUS_TOKENS`, compared per-token in constant time (hash-then-`timingSafeEqual`, so timing never leaks token length or which token matched). Missing/wrong token → `401` with `WWW-Authenticate: Bearer`; no tokens configured → `503` (naming `CATAMORBIUS_TOKENS` in the log) or, in dev mode, an open connection with a per-connection `WARN` line.
@@ -22,6 +22,14 @@ The release gate runs only on PRs whose base is `main`; task PRs into a story br
 - Cleanup on client disconnect/request abort: the store subscription is removed and the heartbeat timer cleared, with no leaked listeners or timers.
 - `test/unit/egress` (frame format against a golden string, filters, the full cursor precedence table, the auth matrix, heartbeat timing, disconnect cleanup) and `test/live` (a real `eventsource` client against a real server proving resume across an actual disconnect/reconnect, filtered live delivery, an on-the-wire heartbeat, and a 401 on a bad token) — both run unconditionally in `bun run check` and CI.
 - README: a full `GET /events` section (auth, frame format, filters, cursor precedence, heartbeats, the browser-`EventSource` header limitation, curl/TypeScript examples), replacing the three SSE forward-references.
+
+## [0.0.2] - 2026-08-28
+### Added
+- GitHub provider adapter (`src/adapters/github.ts`, registered in `src/adapters/index.ts`): HMAC-SHA256 signature verification (constant-time, distinct failure reasons, sha1 header ignored) and fully mechanical CloudEvents typing (`id`/`source`/`type`/`time`/`subject`/`summary`) with no allowlist of event names — an unrecognized event name types correctly with zero bespoke code.
+- `test/fixtures/github/`: documented-shape payload fixtures (ping, push, pull_request opened/closed-merged, issues.opened, issue_comment.created, pull_request_review.submitted, release.published, a deliberately foreign event, and a non-JSON body), each fixture citing the exact GitHub documentation page it was taken from in `test/fixtures/github/README.md`.
+- `test/unit/adapters/github.test.ts`: exact id/source/type/time/subject/summary assertions per fixture, verbatim raw-body retention, mechanical typing of the foreign event, unknown-event retention for non-JSON bodies, every HMAC known-good/known-bad case, and exact header-allowlist filtering.
+- `test/unit/adapters/github-ingress.test.ts`: end-to-end coverage through the real server (`buildApp`) — valid delivery accepted, redelivery deduped by `x-github-delivery`, bad signature rejected, missing secret refused by default, missing secret accepted under dev mode with a WARN log.
+- README: a "GitHub" subsection under "The event format contract" documenting the id/source/type/subject/summary/retained-header rules, the verification mechanism, the fixture-provenance rule, and how to register a GitHub webhook.
 
 ## [0.0.1] - 2026-08-28
 ### Added
