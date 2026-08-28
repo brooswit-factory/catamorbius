@@ -12,6 +12,15 @@ the autoincrement `seq` is the stream cursor) → **SSE egress**.
 This repo currently implements ingress, normalization, and the durable log.
 SSE egress (`GET /events`) lands in a follow-up story.
 
+### Cursor & durability
+
+`seq` is unique and strictly increasing — it is safe to use as a resumable
+stream cursor (`replay everything with seq > N`). It is **not** guaranteed to
+be gapless: a duplicate delivery is deduped and inserts no row, but the
+underlying `AUTOINCREMENT` column still reserves a value for the attempt, so
+the next genuinely new event can skip a number. No events, and no consumer
+guarantee, are lost either way.
+
 ## Run locally
 
 ```sh
