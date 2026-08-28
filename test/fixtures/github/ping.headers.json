@@ -1,0 +1,9 @@
+{
+  "x-github-event": "ping",
+  "x-github-delivery": "b3f1c1d0-0001-4a11-9c11-000000000001",
+  "x-github-hook-id": "12345678",
+  "x-github-hook-installation-target-id": "1296269",
+  "x-github-hook-installation-target-type": "repository",
+  "content-type": "application/json",
+  "user-agent": "GitHub-Hookshot/abc1234"
+}
