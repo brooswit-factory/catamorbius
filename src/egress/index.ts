@@ -127,8 +127,12 @@ export function buildEgress({ config, store }: EgressDeps) {
             return;
           }
           if (row.seq > lastEmittedSeq && matchesFilters(row, filters)) {
-            controller.enqueue(frameBytes(row));
-            lastEmittedSeq = row.seq;
+            try {
+              controller.enqueue(frameBytes(row));
+              lastEmittedSeq = row.seq;
+            } catch {
+              cleanup();
+            }
           }
         });
 

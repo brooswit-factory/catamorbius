@@ -22,6 +22,7 @@ export const loadTestPathFor = (file: string) => `test/load/${file.replace(/\.ts
 export const RUNS_ON_IMPORT = new Set([
   "scripts/load/generate.ts", "scripts/release/check.ts", "scripts/release/publish-needed.ts",
   "scripts/release/notes.ts", "scripts/coverage/gate.ts", "scripts/verify-generated-is-committed.ts",
+  "scripts/smoke.ts",
 ]);
 
 export function loadTestSource(file: string): string {

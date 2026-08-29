@@ -1,6 +1,6 @@
 {
   "name": "catamorbius",
-  "version": "0.0.4",
+  "version": "0.1.0",
   "description": "Webhook → CloudEvents → SSE event gateway (Jira, GitHub, extensible) with lossless retention and resumable streams",
   "license": "MIT",
   "type": "module",
@@ -18,7 +18,8 @@
     "build": "bun build src/index.ts --outdir dist --target bun",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "bun test",
-    "check": "bun run generate && bun run typecheck && bun test test/unit test/load test/live && bun run scripts/coverage/gate.ts && bun run scripts/verify-generated-is-committed.ts",
+    "smoke": "bun run scripts/smoke.ts",
+    "check": "bun run generate && bun run typecheck && bun test test/unit test/load test/live test/e2e && bun run scripts/coverage/gate.ts && bun run scripts/verify-generated-is-committed.ts",
     "release:check": "bun run scripts/release/check.ts"
   },
   "dependencies": {
