@@ -255,10 +255,17 @@ marked confirmed vs. assumed the same way that document does:
   event names anywhere in the adapter. A missing `webhookEvent`, or a body
   that isn't valid JSON at all, becomes one `com.atlassian.jira.unknown`
   event with the raw payload retained; `toEvents` never throws.
-- **`time`** — `body.timestamp` (epoch milliseconds) as RFC 3339 when
-  present and parseable, else the receipt time. The docs never state the
-  unit in prose — **UNDOCUMENTED**, inferred from the one example value in
-  Atlassian's docs (`1606480436302`, which is only sane as milliseconds).
+- **`time`** — `body.timestamp` (epoch milliseconds) as RFC 3339, but only
+  when the millis interpretation is *plausible*: on or after 2000-01-01,
+  and no more than a day in the future of receipt time
+  (`src/adapters/jira.ts` `deriveTime`'s plausibility window). Otherwise —
+  including a syntactically valid but implausible number, e.g. a
+  seconds-epoch value like `1606480436` (which lands in 1970 when read as
+  millis) — it falls back to receipt time rather than emitting a bogus
+  date. The docs never state the unit in prose — **UNDOCUMENTED**, inferred
+  from the one example value in Atlassian's docs (`1606480436302`, which is
+  only sane as milliseconds); the plausibility window is a sanity check
+  layered on top of that inference, not a new claim about the unit itself.
 - **`subject`** — `issue.key` when the body carries an `issue` (this
   covers `comment_*`/`worklog_*` payloads too, when they happen to include
   one); else `project.key`; else `sprint.id` / `version.id` / `board.id`
@@ -487,12 +494,20 @@ interface ProviderAdapter {
 }
 ```
 
-`toEvents` is expected to handle payloads it doesn't recognize itself,
-emitting a single `<provider>.unknown` event with its best-effort id/source
-and the raw payload intact. If it throws instead, the generic ingress layer
-wraps the delivery as `<provider>.unknown` on its behalf — with source
-`//<provider>/unknown`, `id` the sha256 of headers+body, and the raw payload
-intact — so a delivery is never silently dropped.
+`toEvents` must never throw, and is expected to handle payloads it doesn't
+recognize itself — GitHub and Jira both do this by emitting a single event
+in their own fully-qualified "unknown" type (`com.github.unknown` /
+`com.atlassian.jira.unknown`; see each provider's "Unrecognizable
+deliveries" bullet above) with best-effort id/source and the raw payload
+intact. The bare `<provider>.unknown` type (literally that string, no
+reverse-DNS prefix) is a different, narrower thing: it's the type the
+generic ingress layer's throw-guard uses **on an adapter's behalf**, if
+`toEvents` itself throws, *or* returns something that fails the CloudEvent
+shape check (`isCloudEvent` in `src/events/index.ts`) — with source
+`//<provider>/unknown`, `id` the sha256 of headers+body, and the raw
+payload intact, so a delivery is never silently dropped even when an
+adapter is broken. Neither shipped adapter ever exercises this fallback
+path.
 
 A new provider must register in `src/adapters/index.ts` and nowhere else —
 in particular, it must not touch `src/ingress/index.ts`, `src/egress/index.ts`,
