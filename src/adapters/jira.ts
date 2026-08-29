@@ -60,12 +60,22 @@ function deriveId(headers: Record<string, string>, body: Record<string, unknown>
   return hash.digest("hex");
 }
 
+// Plausibility window for a millis-epoch timestamp: on or after 2000-01-01, and no more
+// than a day past receipt. A seconds-epoch value (e.g. 1606480436) falls in 1970 and is
+// rejected here rather than trusted as-is — see docs/jira-webhooks.md's UNDOCUMENTED verdict
+// on the timestamp unit, which this plausibility check does not revise.
+const MIN_PLAUSIBLE_TIME_MS = Date.UTC(2000, 0, 1);
+const MAX_FUTURE_SKEW_MS = 24 * 60 * 60 * 1000;
+
 /** body.timestamp is epoch millis per docs (c) (UNDOCUMENTED as prose, inferred from the example value); else receipt time. */
 function deriveTime(body: Record<string, unknown> | undefined, receiptTime: string): string {
   const timestamp = body?.timestamp;
   if (typeof timestamp === "number" && Number.isFinite(timestamp)) {
     const date = new Date(timestamp);
-    if (!Number.isNaN(date.getTime())) return date.toISOString();
+    const time = date.getTime();
+    if (!Number.isNaN(time) && time >= MIN_PLAUSIBLE_TIME_MS && time <= Date.now() + MAX_FUTURE_SKEW_MS) {
+      return date.toISOString();
+    }
   }
   return receiptTime;
 }

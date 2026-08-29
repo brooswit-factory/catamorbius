@@ -215,6 +215,24 @@ describe("jira adapter — toEvents — documented shapes", () => {
     const [event] = jira.toEvents(JSON.stringify(body), headers);
     expect(event!.source).toBe("//jira/unknown");
   });
+
+  test("a seconds-epoch timestamp is outside the millis plausibility window and falls back to receipt time", () => {
+    // The documented example (1606480436302) is only sane as millis; the same instant in
+    // seconds (1606480436) read as millis lands in 1970 — implausible, so it must be rejected
+    // in favor of receipt time rather than trusted as a 1970 date.
+    const before = Date.now();
+    const headers = { "x-atlassian-webhook-identifier": "seconds-epoch-timestamp" };
+    const body = {
+      timestamp: 1606480436,
+      webhookEvent: "jira:issue_created",
+      issue: { id: "1", self: "https://your-domain.atlassian.net/rest/api/2/issue/1", key: "JRA-1" },
+    };
+    const [event] = jira.toEvents(JSON.stringify(body), headers);
+    const after = Date.now();
+    const eventTimeMs = new Date(event!.time).getTime();
+    expect(eventTimeMs).toBeGreaterThanOrEqual(before);
+    expect(eventTimeMs).toBeLessThanOrEqual(after);
+  });
 });
 
 describe("jira adapter — toEvents — headers", () => {
