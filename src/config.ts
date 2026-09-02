@@ -1,5 +1,7 @@
 export interface Config {
   port: number;
+  /** Interface to bind. Unset means every interface (today's behaviour, unchanged). */
+  host: string | undefined;
   dbPath: string;
   tokens: string[];
   devMode: boolean;
@@ -14,6 +16,7 @@ const DEFAULT_HEARTBEAT_MS = 15000;
 /** Reads all catamorbius config from env (defaults to process.env). */
 export function loadConfig(env: Record<string, string | undefined> = process.env): Config {
   const port = Number(env.PORT ?? "3000");
+  const host = env.HOST;
   const dbPath = env.CATAMORBIUS_DB ?? "./data/catamorbius.sqlite";
   const tokens = (env.CATAMORBIUS_TOKENS ?? "")
     .split(",")
@@ -25,6 +28,7 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
 
   return {
     port,
+    host,
     dbPath,
     tokens,
     devMode,
