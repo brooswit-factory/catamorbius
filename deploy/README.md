@@ -26,6 +26,16 @@ host:
   traffic is indistinguishable from a real external client's. The
   source-address form is what actually blocks it.
 
+**This whole iptables/sudo mechanism is an interim measure, not the settled
+end state.** It exists only because the gateway itself has no bind-address
+variable to restrict which interface it listens on. **CATA-8** tracks
+adding that variable and, once it lands, *removing* this unit's
+`ExecStartPre`/`ExecStopPost`/sudo machinery in favor of the gateway
+binding loopback directly — at which point this whole section goes away.
+Until then, the sudo dependency below counts as a real hit against
+"reproducible by someone who is not the original deployer": don't treat it
+as fully solved.
+
 The `sudo` calls in the unit need a NOPASSWD sudoers entry for the deploying
 account — see Install step 1 below, which is a **prerequisite of this
 deployment**, not a claim about every host in the fleet. `ExecStartPre` has

@@ -29,6 +29,9 @@ WorkingDirectory=%h/deploy/catamorbius
 # The rule is scoped to exactly this unit's own $PORT and is idempotent
 # (checked before insert) so re-starts never stack duplicate rules; the
 # `-` on ExecStopPost means a missing rule on stop is not an error.
+# INTERIM, not the settled end state: CATA-8 adds a bind-address variable
+# to the gateway and then removes this ExecStartPre/ExecStopPost/sudo
+# machinery entirely in favor of binding loopback directly.
 ExecStartPre=/bin/sh -c 'sudo /usr/sbin/iptables -C INPUT -p tcp --dport "$PORT" ! -s 127.0.0.1 -j DROP 2>/dev/null || sudo /usr/sbin/iptables -I INPUT -p tcp --dport "$PORT" ! -s 127.0.0.1 -j DROP'
 ExecStart=%h/.bun/bin/bun run src/index.ts
 ExecStopPost=-/bin/sh -c 'sudo /usr/sbin/iptables -D INPUT -p tcp --dport "$PORT" ! -s 127.0.0.1 -j DROP'
