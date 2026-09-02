@@ -6,10 +6,17 @@ fleet: machines, identities and how a deploy is done"). Localhost-only —
 making it reachable beyond that is a separate, later story.
 
 The gateway binds loopback itself via the `HOST` env var (see the README's
-Configuration table); the unit pins `HOST=127.0.0.1` directly
-(`deploy/catamorbius.service`), after its `EnvironmentFile`, so it always
-wins over whatever the per-deployment env file does or doesn't set. No
-firewall rule, and no `sudo`, are involved in keeping this localhost-only.
+Configuration table). It is set in two places on purpose: the unit
+(`deploy/catamorbius.service`) sets `Environment=HOST=127.0.0.1` as a
+fallback default, and `catamorbius.env.example` also ships `HOST=127.0.0.1`
+— **the env file is what actually decides it**, since systemd's
+`EnvironmentFile=` overrides the unit's own `Environment=` for the same
+variable whichever order the two directives appear in (this is not the
+order-dependent override you might expect from reading the unit file top to
+bottom — verify it yourself before relying on it). Don't remove or change
+the `HOST` line in your env file without understanding that consequence:
+there is no firewall rule behind it to catch a mistake. No firewall rule,
+and no `sudo`, are involved in keeping this localhost-only.
 
 **Verifying "not LAN-reachable": `curl http://<host's LAN-facing
 IP>:<PORT>/healthz` should get connection refused (curl exit `7`) — nothing
@@ -48,7 +55,8 @@ back a firewall-based approach:
 3. Copy `catamorbius.env.example` to a private path, e.g.
    `/home/<account>/.config/catamorbius/catamorbius.env`, fill in
    `CATAMORBIUS_DB` and strong random secrets (`openssl rand -hex 32`), and
-   `chmod 600` it.
+   `chmod 600` it. Leave `HOST=127.0.0.1` as shipped — see above for why
+   that line, not the unit, is what actually decides the bind address.
 4. Copy `catamorbius.service` to
    `/home/<account>/.config/systemd/user/catamorbius.service`. It uses `%h`
    for the home directory, so it works as-is as long as the checkout and

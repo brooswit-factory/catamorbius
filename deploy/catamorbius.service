@@ -4,10 +4,13 @@ After=network.target
 
 [Service]
 EnvironmentFile=%h/.config/catamorbius/catamorbius.env
-# Pinned here, after EnvironmentFile, so it always wins over whatever the
-# (per-deployment, operator-edited) env file does or doesn't set: this
-# deployment stays localhost-only because the gateway itself binds loopback,
-# not because of any host-wide firewall state.
+# Fallback default only: systemd's EnvironmentFile= always overrides
+# Environment= for the same variable, regardless of which is listed first
+# in this file (measured live, not assumed from the docs) — so this line
+# does NOT enforce loopback against an env file that sets HOST differently.
+# The real guarantee is that catamorbius.env.example also ships
+# HOST=127.0.0.1; this Environment= line only covers a deployment whose env
+# file omits HOST entirely.
 Environment=HOST=127.0.0.1
 WorkingDirectory=%h/deploy/catamorbius
 
