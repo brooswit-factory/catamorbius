@@ -584,4 +584,6 @@ See [CHANGELOG.md](CHANGELOG.md) for the full history of changes, in
 
 ## Deployment
 
-Deployment: not covered in v0.1; see a future ticket.
+Deployment: not covered in v0.1; see a future ticket. A systemd user-unit
+template and environment-file template live in [`deploy/`](deploy/) in the
+meantime.

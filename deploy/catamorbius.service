@@ -1,0 +1,42 @@
+[Unit]
+Description=catamorbius (webhook -> CloudEvents -> SSE event gateway)
+After=network.target
+
+[Service]
+EnvironmentFile=%h/.config/catamorbius/catamorbius.env
+WorkingDirectory=%h/deploy/catamorbius
+
+# The app itself binds every interface (no HOST/bind-address env var exists
+# per the README's documented config) — this deployment stays localhost-only
+# by installing an iptables rule around the process's lifetime instead of
+# patching the gateway. systemd's own IPAddressAllow/Deny sandboxing was
+# tried first and does NOT work here: for a *user* unit running unprivileged
+# it logs "unit configures an IP firewall, but not running as root" and is
+# silently a no-op — confirmed live, the LAN could still reach the port
+# with it set. `sudo` is required for this unit's ExecStartPre/ExecStopPost
+# — see deploy/README.md Install step 1 for the sudoers entry this
+# deployment needs; it is a prerequisite to set up per-deployment, not a
+# fact already true of every host. ExecStartPre has no `-` prefix, so a
+# missing sudoers entry fails the unit closed (won't start) rather than
+# starting it wide-open on the LAN.
+# The rule drops by SOURCE address, not by input interface: a `! -i lo`
+# variant was tried first and also failed silently — a packet a process on
+# this same host sends to the host's own LAN-facing address is delivered
+# over `lo` internally by the kernel regardless, so `-i lo` matches it and
+# lets it through even though it is indistinguishable, on the wire, from a
+# real external client. Confirmed live: only the source-address form
+# actually blocks a same-host request aimed at the LAN IP.
+# The rule is scoped to exactly this unit's own $PORT and is idempotent
+# (checked before insert) so re-starts never stack duplicate rules; the
+# `-` on ExecStopPost means a missing rule on stop is not an error.
+# INTERIM, not the settled end state: CATA-8 adds a bind-address variable
+# to the gateway and then removes this ExecStartPre/ExecStopPost/sudo
+# machinery entirely in favor of binding loopback directly.
+ExecStartPre=/bin/sh -c 'sudo /usr/sbin/iptables -C INPUT -p tcp --dport "$PORT" ! -s 127.0.0.1 -j DROP 2>/dev/null || sudo /usr/sbin/iptables -I INPUT -p tcp --dport "$PORT" ! -s 127.0.0.1 -j DROP'
+ExecStart=%h/.bun/bin/bun run src/index.ts
+ExecStopPost=-/bin/sh -c 'sudo /usr/sbin/iptables -D INPUT -p tcp --dport "$PORT" ! -s 127.0.0.1 -j DROP'
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=default.target
