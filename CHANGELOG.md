@@ -11,6 +11,16 @@ The release gate runs only on PRs whose base is `main`; task PRs into a story br
 - **MINOR** — a new feature, or a change to an existing feature that breaks just that feature.
 - **PATCH** — a fix or correction that requires no consumer code changes, or very minor ones.
 
+## [0.2.0] - 2026-09-02
+### Added
+- `HOST` env var (`src/config.ts`, `src/index.ts`): the interface the gateway binds. Unset behaves exactly as before — every interface — so no existing deployment, test, or dev run changes behavior by upgrading; set it to bind a single interface (e.g. loopback).
+
+### Removed
+- `deploy/catamorbius.service`: the `ExecStartPre`/`ExecStopPost` iptables DROP-rule workaround and its `sudo` dependency. The unit now pins `HOST=127.0.0.1` directly and binds loopback via the gateway itself, so it starts on a host with no passwordless `sudo` at all.
+
+### Changed
+- `deploy/README.md` and `deploy/catamorbius.env.example`: dropped the sudoers/Install-step-1 material (no longer needed — nothing to preserve, including the step-numbering defect it carried); rewrote the not-LAN-reachable verification section for the new single signature (connection refused, curl exit `7`), keeping a short note that the interim DROP rule used to produce a timeout (exit `28`) instead, so an older runbook doesn't misread today's exit `7` as a fault.
+
 ## [0.1.0] - 2026-08-28
 ### Added
 - The full v0.1.0 product, proven end-to-end in CI: **ingress** (`POST /webhooks/:provider`, byte-exact HMAC verification, dedupe-aware storage, the `<provider>.unknown` throw-guard) → **normalize** (GitHub and Jira provider adapters, both mechanically typed with no event-name allowlist) → **durable log** (`bun:sqlite`, append-only, the autoincrement `seq` as the resumable stream cursor) → **SSE egress** (`GET /events`, bearer auth, `type`/`source`/`subject` filters, `Last-Event-ID`/`?from` cursor resume, heartbeats).

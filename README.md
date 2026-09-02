@@ -68,6 +68,7 @@ comments.
 | Variable | Meaning | Default | Required |
 | --- | --- | --- | --- |
 | `PORT` | HTTP port to listen on. | `3000` | Optional |
+| `HOST` | Interface to bind. | every interface | Optional |
 | `CATAMORBIUS_DB` | Path to the sqlite database file; created on start if missing. `:memory:` is allowed (non-durable, for tests/dev). | `./data/catamorbius.sqlite` | Optional |
 | `WEBHOOK_SECRET_<PROVIDER>` | Per-provider webhook secret, e.g. `WEBHOOK_SECRET_GITHUB`, `WEBHOOK_SECRET_JIRA` (provider name uppercased — `src/config.ts`'s `secretFor`). Used by that provider's adapter to verify deliveries. | none | Optional per provider — see the missing-secret rule below; a provider with no secret configured refuses its webhooks with `503` by default. |
 | `CATAMORBIUS_TOKENS` | Comma-separated bearer tokens accepted by `GET /events`. | none (empty) | Optional — see [Auth](#auth); with none configured, `GET /events` refuses with `503` by default. |

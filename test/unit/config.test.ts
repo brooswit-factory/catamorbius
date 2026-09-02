@@ -5,6 +5,7 @@ describe("config", () => {
   test("defaults with no env set", () => {
     const c = loadConfig({});
     expect(c.port).toBe(3000);
+    expect(c.host).toBeUndefined();
     expect(c.dbPath).toBe("./data/catamorbius.sqlite");
     expect(c.tokens).toEqual([]);
     expect(c.devMode).toBe(false);
@@ -15,11 +16,13 @@ describe("config", () => {
   test("reads overrides from env", () => {
     const c = loadConfig({
       PORT: "4000",
+      HOST: "127.0.0.1",
       CATAMORBIUS_DB: ":memory:",
       CATAMORBIUS_TOKENS: "a, b ,c",
       CATAMORBIUS_DEV_MODE: "1",
     });
     expect(c.port).toBe(4000);
+    expect(c.host).toBe("127.0.0.1");
     expect(c.dbPath).toBe(":memory:");
     expect(c.tokens).toEqual(["a", "b", "c"]);
     expect(c.devMode).toBe(true);
