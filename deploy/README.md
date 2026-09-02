@@ -26,6 +26,17 @@ host:
   traffic is indistinguishable from a real external client's. The
   source-address form is what actually blocks it.
 
+**Verifying "not LAN-reachable" has two different correct signatures,
+depending on whether CATA-8 has landed yet — don't expect only one of
+them.** Today, with this DROP rule in place, `curl
+http://<host's LAN-facing IP>:<PORT>/healthz` **times out** (curl exit
+`28`) — that's the rule silently dropping the packet. After CATA-8 removes
+this machinery and the gateway binds loopback directly, the same command
+will instead get **connection refused** (curl exit `7`) — no rule to hide
+behind, just nothing listening on that address. Both mean the same thing,
+"not LAN-reachable"; neither is a failure. A check written to expect only
+the timeout will misread a post-CATA-8 "connection refused" as broken.
+
 **This whole iptables/sudo mechanism is an interim measure, not the settled
 end state.** It exists only because the gateway itself has no bind-address
 variable to restrict which interface it listens on. **CATA-8** tracks
