@@ -13,7 +13,12 @@ WorkingDirectory=%h/deploy/catamorbius
 # tried first and does NOT work here: for a *user* unit running unprivileged
 # it logs "unit configures an IP firewall, but not running as root" and is
 # silently a no-op — confirmed live, the LAN could still reach the port
-# with it set. `sudo` is required and (on this fleet's hosts) passwordless.
+# with it set. `sudo` is required for this unit's ExecStartPre/ExecStopPost
+# — see deploy/README.md Install step 1 for the sudoers entry this
+# deployment needs; it is a prerequisite to set up per-deployment, not a
+# fact already true of every host. ExecStartPre has no `-` prefix, so a
+# missing sudoers entry fails the unit closed (won't start) rather than
+# starting it wide-open on the LAN.
 # The rule drops by SOURCE address, not by input interface: a `! -i lo`
 # variant was tried first and also failed silently — a packet a process on
 # this same host sends to the host's own LAN-facing address is delivered

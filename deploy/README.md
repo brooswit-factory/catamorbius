@@ -26,31 +26,57 @@ host:
   traffic is indistinguishable from a real external client's. The
   source-address form is what actually blocks it.
 
-`sudo` is required for the iptables calls and is passwordless for the
-deploying account on this fleet's hosts (see the ASSIST Confluence space).
-The rule is scoped to exactly this unit's own `$PORT` and is idempotent, so
-restarts never stack duplicate rules.
+The `sudo` calls in the unit need a NOPASSWD sudoers entry for the deploying
+account — see Install step 1 below, which is a **prerequisite of this
+deployment**, not a claim about every host in the fleet. `ExecStartPre` has
+no `-` prefix on purpose: if that sudoers entry is missing, the unit fails
+to start rather than starting wide-open on the LAN. If you see the service
+fail to start (including on boot), check this first — `journalctl --user -u
+catamorbius.service` will show the `sudo` failure. The rule itself is
+scoped to exactly this unit's own `$PORT` and is idempotent, so restarts
+never stack duplicate rules.
 
 ## Install
 
-1. Clone the repo to a stable checkout outside any agent workspace (it must
-   survive workspace rebuilds), e.g. `~/deploy/catamorbius`, and run
-   `bun install` in it.
-2. Pick a stable path for the sqlite log, outside any workspace and outside
-   the checkout itself, e.g. `~/.local/share/catamorbius/catamorbius.sqlite`.
-   The parent directory must exist; the file is created on first start.
-3. Copy `catamorbius.env.example` to a private path, e.g.
-   `~/.config/catamorbius/catamorbius.env`, fill in `CATAMORBIUS_DB` and
-   strong random secrets (`openssl rand -hex 32`), and `chmod 600` it.
-4. Copy `catamorbius.service` to `~/.config/systemd/user/catamorbius.service`.
-   It uses `%h` for the home directory, so it works as-is as long as the
-   checkout and env file are at the paths you chose above — adjust
-   `WorkingDirectory` / `EnvironmentFile` if you chose different ones.
-5. `loginctl enable-linger <account>` so the unit starts on boot without a
+1. Grant the deploying account passwordless sudo for exactly the iptables
+   calls this unit makes, scoped to the port you're about to choose in step
+   3 (`3000` below — replace it with your actual port in all three lines).
+   Add a file under `/etc/sudoers.d/` (`visudo -f
+   /etc/sudoers.d/catamorbius`) containing:
+   ```
+   <account> ALL=(root) NOPASSWD: /usr/sbin/iptables -C INPUT -p tcp --dport 3000 ! -s 127.0.0.1 -j DROP, /usr/sbin/iptables -I INPUT -p tcp --dport 3000 ! -s 127.0.0.1 -j DROP, /usr/sbin/iptables -D INPUT -p tcp --dport 3000 ! -s 127.0.0.1 -j DROP
+   ```
+   without this, the unit still fails closed (see above) rather than
+   silently exposing the port — but it also won't start at all.
+2. Clone the repo to a stable checkout outside any agent workspace (it must
+   survive workspace rebuilds), e.g. `/home/<account>/deploy/catamorbius`,
+   and run `bun install` in it.
+3. Pick a stable path for the sqlite log, outside any workspace and outside
+   the checkout itself, e.g.
+   `/home/<account>/.local/share/catamorbius/catamorbius.sqlite`. The
+   parent directory must exist; the file is created on first start.
+4. Copy `catamorbius.env.example` to a private path, e.g.
+   `/home/<account>/.config/catamorbius/catamorbius.env`, fill in
+   `CATAMORBIUS_DB` and strong random secrets (`openssl rand -hex 32`), and
+   `chmod 600` it.
+5. Copy `catamorbius.service` to
+   `/home/<account>/.config/systemd/user/catamorbius.service`. It uses `%h`
+   for the home directory, so it works as-is as long as the checkout and
+   env file are at the paths you chose above — adjust `WorkingDirectory` /
+   `EnvironmentFile` if you chose different ones.
+6. `loginctl enable-linger <account>` so the unit starts on boot without a
    login session.
-6. `systemctl --user daemon-reload && systemctl --user enable --now catamorbius.service`.
-7. Verify: `curl http://localhost:<PORT>/healthz` should return
+7. `systemctl --user daemon-reload && systemctl --user enable --now catamorbius.service`.
+8. Verify: `curl http://localhost:<PORT>/healthz` should return
    `{"ok":true,"seq":<n>}`.
+
+**Record, for whoever deploys this next: the host, the owning account, and
+the absolute paths chosen in steps 2-4** (not `~`-relative — `~` resolves
+to whichever account reads it, not the one that ran the install). Those
+four facts are what makes this deployment findable; without them a
+successor with shell access to the very same host cannot locate the unit,
+the checkout, the database, or the env file that later stories need to
+sign deliveries and subscribe.
 
 ## Deploying a new version
 
