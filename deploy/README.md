@@ -188,11 +188,24 @@ independent enablement wall of its own** — confirmed live on this host: it
 blocks with the identical shape but a different URL
 (`https://login.tailscale.com/f/serve?node=<node-id>`), a separate
 tailnet-admin switch from Funnel's own, not the same setting phrased
-twice. This matters because `tailscale serve` was meant to be usable as a
-de-risking proxy (proving body passthrough and SSE aren't mangled) without
-needing Funnel's public cert — on a tailnet where `serve` isn't enabled
-either, that de-risk is blocked right along with Funnel, and has to wait
-for both to be turned on.
+twice. **So there are three tailnet-admin settings involved, not two: the
+`funnel` node attribute, HTTPS certificates for the tailnet, and — easy to
+miss because the CLI output looks so similar — a separate `serve`
+attribute.** This matters because `tailscale serve` was meant to be usable
+as a de-risking proxy (proving body passthrough and SSE aren't mangled)
+without needing Funnel's public cert — on a tailnet where `serve` isn't
+enabled either, that de-risk is blocked right along with Funnel, and has
+to wait for all three to be turned on.
+
+**On both commands: the exit code you see is your shell's `timeout`
+killing the process, not `tailscale`'s own verdict.** Whether you ran
+`tailscale funnel --bg <target>` or `tailscale serve --bg <target>`, an
+exit `124` under `timeout N ... </dev/null` means N seconds elapsed while
+the command was still polling for approval — it is not `tailscale` itself
+reporting failure, and the same wall would keep the command blocked
+indefinitely without a `timeout` around it. Read the printed message
+("... is not enabled on your tailnet"), not the shell exit code, as the
+actual verdict.
 
 ### Verifying it worked
 
