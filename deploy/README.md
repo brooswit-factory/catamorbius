@@ -87,3 +87,149 @@ for that account. Verify the HEAD sha, the package version, and
 
 `journalctl --user -u catamorbius.service` — note the `--user` flag; the
 system-level form silently shows no entries for a user unit.
+
+## Public ingress (Tailscale Funnel)
+
+Everything above this section makes catamorbius reachable on loopback only
+— correct and intentional (see the loopback section up top). Making it
+reachable from the public internet, so GitHub and Jira Cloud can actually
+deliver webhooks to it, is a separate layer on top, added here.
+
+**Approach: [Tailscale Funnel](https://tailscale.com/kb/1223/tailscale-funnel).**
+Chosen over cloudflared/ngrok/caddy/nginx/a container runtime (none of
+which are installed on the fleet host, and most of which need a new
+account nobody has) and over router port-forwarding (needs the same human
+click as Funnel plus a certificate story Funnel gives for free): Tailscale
+is already installed, up, and logged in on this host, and Funnel gives a
+stable `https://<node>.<tailnet>.ts.net` name with a real Let's Encrypt
+certificate, no new binary, no DNS registrar, no router change. Rejecting
+this approach — e.g. because the tailnet admin declines to enable Funnel,
+or because Funnel turns out unable to pass request bodies byte-for-byte or
+to stream SSE without buffering — is a decision for whoever owns the
+ingress story, not an implementation detail to route around silently; if
+you hit either of those, say so loudly rather than reaching for one of the
+rejected alternatives.
+
+### Why 127.0.0.1, not the tailnet address
+
+**Funnel/Serve must be pointed at `127.0.0.1:<PORT>`, never at the host's
+own tailnet IP or a bare port that isn't explicitly loopback.** This is not
+obvious and costs real time to rediscover: catamorbius binds loopback only
+(see above), and *the host's own tailnet-facing address refuses the
+connection exactly the same way its LAN address does* — only 127.0.0.1
+answers. Point Funnel at the tailnet IP and it will fail to reach the
+service, which looks exactly like "the proxy can't reach catamorbius" — a
+symptom whose tempting wrong fix is widening the gateway's own bind back
+to every interface. **Don't.** `deploy/funnel.sh` (below) always targets
+`127.0.0.1:$PORT` explicitly so nobody has to remember this under
+pressure; if you ever drive `tailscale funnel`/`tailscale serve` by hand,
+target `127.0.0.1:<PORT>` the same way.
+
+### What's committed, and why a script instead of a config file
+
+Funnel's configuration lives in `tailscaled`'s own persistent state, not in
+a file this repo can ship — there is no Funnel-equivalent of
+`catamorbius.service` to commit. What's committed instead is
+[`deploy/funnel.sh`](funnel.sh), an idempotent script with three
+subcommands:
+
+```sh
+deploy/funnel.sh install [PORT]   # turn Funnel on for 127.0.0.1:PORT (default 3000)
+deploy/funnel.sh status           # show current Funnel/Serve config and the public URL, if any
+deploy/funnel.sh teardown         # turn Funnel off (does not touch the gateway or its unit)
+```
+
+`install` is safe to re-run: it checks the current Funnel config first and
+no-ops if the target port is already funneled, rather than erroring or
+duplicating config. It also always runs the underlying `tailscale funnel`
+call under a `timeout`, for the reason in the next section — never invoke
+`tailscale funnel --bg <target>` directly without one.
+
+### Prerequisite: two tailnet-admin settings, neither reachable from an agent account
+
+**Funnel requires two things enabled at the tailnet level, by whoever owns
+the tailnet — the `funnel` node capability for this specific node, and
+HTTPS certificates for the tailnet.** Neither is something a deploying
+account (agent or human operator without tailnet-admin rights) can turn on
+itself, even if that account holds `is-owner`/`is-admin` node capabilities
+— those describe the *node's* capabilities, not a grant to change tailnet
+policy. Check both before assuming Funnel is ready:
+
+```sh
+tailscale status --json | python3 -c 'import json,sys; d=json.load(sys.stdin); print("CertDomains:", d.get("CertDomains")); print("CapMap:", d.get("Self",{}).get("CapMap"))'
+```
+
+`CertDomains: null` and no `funnel` key in `CapMap` both mean it's not
+enabled yet.
+
+**What "not enabled" actually looks like when you try it — this is the
+expensive-to-rediscover part.** `tailscale funnel --bg <target>` does
+**not** fail fast and does **not** return a normal error. It prints this
+and then blocks indefinitely, polling for approval:
+
+```
+Funnel is not enabled on your tailnet.
+To enable, visit:
+
+         https://login.tailscale.com/f/funnel?node=<node-id>
+```
+
+Run it under `timeout` and with `</dev/null`, or it hangs whatever invoked
+it — `deploy/funnel.sh install` already does both, and on hitting this
+wall exits `2` (distinct from `1`, a genuine error) after confirming the
+killed attempt left no partial state behind (`tailscale funnel status`
+still reports "No serve config"). The one-click enablement URL is
+node-specific and emitted by the CLI itself — the tailnet owner visits it
+and approves; nothing on this host can complete that flow, and this script
+deliberately does not try.
+
+**`tailscale serve` (tailnet-internal only, no public exposure) has an
+independent enablement wall of its own** — confirmed live on this host: it
+blocks with the identical shape but a different URL
+(`https://login.tailscale.com/f/serve?node=<node-id>`), a separate
+tailnet-admin switch from Funnel's own, not the same setting phrased
+twice. This matters because `tailscale serve` was meant to be usable as a
+de-risking proxy (proving body passthrough and SSE aren't mangled) without
+needing Funnel's public cert — on a tailnet where `serve` isn't enabled
+either, that de-risk is blocked right along with Funnel, and has to wait
+for both to be turned on.
+
+### Verifying it worked
+
+```sh
+deploy/funnel.sh status
+```
+
+should show a `https://<node>.<tailnet>.ts.net` entry proxying to
+`127.0.0.1:<PORT>`. Confirm end-to-end with `curl` from a **different**
+host than this one — a request that never left the machine proves nothing
+about public reachability:
+
+```sh
+curl https://<node>.<tailnet>.ts.net/healthz
+```
+
+expect catamorbius's real `{"ok":true,"seq":<n>}`.
+
+### Tearing it down
+
+```sh
+deploy/funnel.sh teardown
+```
+
+turns Funnel off. This only removes the public-ingress config; it does not
+touch the gateway process, its systemd unit, its database, or the loopback
+bind — those are unaffected by anything in this section.
+
+### Persistence
+
+`tailscale funnel --bg` persists in `tailscaled`'s own state, which is
+itself backed by a systemd **system** service (`tailscaled.service`,
+separate from catamorbius's own **user** unit) that starts on boot — so
+the Funnel config is expected to survive a restart of catamorbius itself,
+a restart of `tailscaled`, and a reboot of the host, the same way any
+other `tailscale serve`/`funnel` config does. Whichever of those this
+project's own evidence trail actually exercises (rather than just cites
+this mechanism for) is recorded, separately, wherever that live proof
+lives — check there for what was actually measured versus what is
+asserted here from Tailscale's own documented behavior.
