@@ -131,7 +131,11 @@ Funnel's configuration lives in `tailscaled`'s own persistent state, not in
 a file this repo can ship — there is no Funnel-equivalent of
 `catamorbius.service` to commit. What's committed instead is
 [`deploy/funnel.sh`](funnel.sh), an idempotent script with three
-subcommands:
+subcommands. **New runtime dependency: `python3`**, used only to parse
+`tailscale status --json`'s `BackendState` field — near-certain to already
+be present on any host that runs a full desktop or server distro, but
+worth naming since nothing else in this project's deploy path needs it
+(catamorbius itself is a Bun/TypeScript service).
 
 ```sh
 deploy/funnel.sh install [PORT]   # turn Funnel on for 127.0.0.1:PORT (default 3000)
@@ -149,11 +153,14 @@ call under a `timeout`, for the reason in the next section — never invoke
 
 **Funnel requires two things enabled at the tailnet level, by whoever owns
 the tailnet — the `funnel` node capability for this specific node, and
-HTTPS certificates for the tailnet.** Neither is something a deploying
-account (agent or human operator without tailnet-admin rights) can turn on
-itself, even if that account holds `is-owner`/`is-admin` node capabilities
-— those describe the *node's* capabilities, not a grant to change tailnet
-policy. Check both before assuming Funnel is ready:
+HTTPS certificates for the tailnet.** Neither can be completed from this
+node's CLI, even when the logged-in account holds `is-owner`/`is-admin`
+node capabilities — those capabilities reflect that the tailnet's own
+owner/admin *is* the identity logged in on this node, so that person *can*
+enable both switches, but only by opening the enablement URL in a browser
+and approving it in the admin console. The CLI itself has no command that
+completes that flow; running it from here, or from a more "privileged"
+account, changes nothing. Check both before assuming Funnel is ready:
 
 ```sh
 tailscale status --json | python3 -c 'import json,sys; d=json.load(sys.stdin); print("CertDomains:", d.get("CertDomains")); print("CapMap:", d.get("Self",{}).get("CapMap"))'
@@ -233,6 +240,16 @@ deploy/funnel.sh teardown
 turns Funnel off. This only removes the public-ingress config; it does not
 touch the gateway process, its systemd unit, its database, or the loopback
 bind — those are unaffected by anything in this section.
+
+**UNVERIFIED as of this writing** — teardown cannot be exercised until
+Funnel is actually enabled and installed at least once, which hasn't
+happened yet (see the prerequisite above). Note also that its fallback
+path (`tailscale funnel reset`, used when the targeted `off` doesn't
+apply) clears **all** serve/funnel config on this node, not just
+catamorbius's — harmless today because nothing else is configured, but
+worth knowing before running it on a host with other serve/funnel targets
+in place. Re-verify this whole section against a real run once Phase B is
+unblocked, and update this note with what was actually observed.
 
 ### Persistence
 

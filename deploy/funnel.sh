@@ -73,9 +73,9 @@ do_install() {
   fi
 
   echo "Enabling Funnel for ${TARGET} (background, persists in tailscaled state)..."
-  local out rc
+  local timeout_secs=10 out rc
   set +e
-  out="$(timeout 10 tailscale funnel --bg "$TARGET" </dev/null 2>&1)"
+  out="$(timeout "$timeout_secs" tailscale funnel --bg "$TARGET" </dev/null 2>&1)"
   rc=$?
   set -e
 
@@ -87,7 +87,13 @@ do_install() {
     exit 0
   fi
 
-  if [ $rc -eq 124 ] || printf '%s' "$out" | grep -q "not enabled on your tailnet"; then
+  # The verdict is the PRINTED MESSAGE, never the shell's timeout exit code —
+  # exit 124 only means "N seconds elapsed while tailscale was still
+  # running", not "tailscale said no". Treating a bare timeout as proof of
+  # "not enabled" would misdiagnose a slow control-plane response, first-time
+  # cert provisioning, or a wedged tailscaled as the tailnet-admin wall, and
+  # send the operator to an enablement URL that isn't their problem.
+  if printf '%s' "$out" | grep -q "not enabled on your tailnet"; then
     echo "BLOCKED: Funnel is not enabled on this tailnet yet. This is the expected" >&2
     echo "failure mode when the tailnet-level 'funnel' node attribute and/or HTTPS" >&2
     echo "certificates haven't been turned on by the tailnet admin — see" >&2
@@ -101,6 +107,20 @@ do_install() {
     echo "Confirming no partial state was left behind by the killed attempt:" >&2
     do_status
     exit 2
+  fi
+
+  if [ $rc -eq 124 ]; then
+    echo "TIMED OUT after ${timeout_secs}s with no recognizable message — cause" >&2
+    echo "unknown. This is NOT confirmed to be the 'not enabled on your tailnet'" >&2
+    echo "wall (that prints a specific message this run didn't produce); it could" >&2
+    echo "be a slow control-plane response, first-time certificate provisioning," >&2
+    echo "or a wedged tailscaled. Check 'tailscale funnel status' and tailscaled's" >&2
+    echo "own health, and consider retrying with a longer timeout, before assuming" >&2
+    echo "anything about tailnet policy." >&2
+    echo >&2
+    echo "Raw output from the attempt (may be empty):" >&2
+    printf '%s\n' "$out" >&2
+    exit 3
   fi
 
   echo "ERROR: 'tailscale funnel' failed for an unrecognized reason (exit $rc):" >&2
